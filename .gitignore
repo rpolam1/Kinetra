@@ -1,0 +1,21 @@
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+vision/hub.db*
+vision/.hub_url
+vision/templates/*.json
+vision/tags/
+
+# web
+web/node_modules/
+web/dist/
+web/dist-e2e/
+web/.env
+web/.env.*
+!web/.env.example
+web/service_account.json
+kinetra-jetson.sh
+
+# secrets
+service-account*.json
