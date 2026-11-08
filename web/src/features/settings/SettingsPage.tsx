@@ -42,8 +42,8 @@ export function SettingsPage() {
 
       <Card title="Hub connection" description="The hub is the program running next to the cameras. Leave the address empty when the hub serves this page.">
         <div className="space-y-4">
-          <TextField label="Hub address" name="hubUrl" value={baseUrl} disabled={!editable} placeholder="same as this page" hint="e.g. http://192.168.1.23:5000, only needed when this page is NOT served by the hub" onChange={setBaseUrl} />
-          <TextField label="Hub API key" name="hubKey" type="password" value={apiKey} disabled={!editable} autoComplete="off" hint="Only if the hub was started with HUB_API_KEY. Stored in this browser only, never in the code." onChange={setApiKey} />
+          <TextField label="Hub address" name="hubUrl" value={baseUrl} disabled={!editable} autoComplete="url" placeholder="same as this page" hint="e.g. http://192.168.1.23:5000, only needed when this page is NOT served by the hub" onChange={setBaseUrl} />
+          <TextField label="Hub API key" name="hubKey" type="password" value={apiKey} disabled={!editable} autoComplete="new-password" hint="Only if the hub was started with HUB_API_KEY. Stored in this browser only, never in the code." onChange={setApiKey} />
           <div className="flex flex-wrap items-center gap-3">
             <Button onClick={save} disabled={!editable} icon="save">Save</Button>
             <Button variant="secondary" onClick={test} loading={busy} disabled={!editable} icon="online">Test connection</Button>
