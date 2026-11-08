@@ -1,0 +1,137 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function profilePath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function hasActiveProfile() {
+      return signedIn() && exists(profilePath()) && get(profilePath()).data.status == 'approved';
+    }
+    // '' when not approved, so role checks fail
+    function role() { return hasActiveProfile() ? get(profilePath()).data.role : ''; }
+    function isAdmin() { return role() == 'admin'; }
+    function canRead() { return signedIn() && role() in ['admin', 'instructor', 'volunteer']; }
+    function isStaff() { return signedIn() && role() in ['admin', 'instructor']; }
+
+    function text(value, maxLength) { return value is string && value.size() <= maxLength; }
+
+    function validPatient(p) {
+      return text(p.firstName, 60) && p.firstName.size() > 0
+        && text(p.lastName, 60) && p.lastName.size() > 0
+        && text(p.boardName, 24) && p.boardName.size() > 0
+        && p.dateOfBirth is string && p.dateOfBirth.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && p.status in ['active', 'archived']
+        && (p.tagId == null || (p.tagId is int && p.tagId >= 0 && p.tagId <= 586))
+        && text(p.precautions, 2000) && text(p.goals, 2000)
+        && p.diagnoses is list && p.diagnoses.size() <= 50
+        && p.medications is list && p.medications.size() <= 50
+        && p.baselineTests is list && p.baselineTests.size() <= 50;
+    }
+
+
+    match /users/{uid} {
+      function roleValue(v) { return v in ['admin', 'instructor', 'volunteer']; }
+      function ownFieldsOnly() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requestedRole', 'awaiting', 'displayName']);
+      }
+
+      // own record, or any if admin
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+      // sign up: pending, no role
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'status', 'requestedRole', 'awaiting', 'createdAt', 'decidedBy', 'decidedAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.role == null
+        && request.resource.data.status == 'pending'
+        && request.resource.data.awaiting == true
+        && request.resource.data.decidedBy == null
+        && request.resource.data.requestedRole in ['volunteer', 'instructor']
+        && text(request.resource.data.displayName, 80)
+        && text(request.resource.data.email, 200)
+        && request.resource.data.createdAt is int;
+
+      allow update: if signedIn() && (
+        // can rename or request a role, never touch role/status
+        (request.auth.uid == uid
+          && resource.data.status in ['pending', 'approved']
+          && ownFieldsOnly()
+          && roleValue(request.resource.data.requestedRole)
+          && request.resource.data.awaiting == true
+          && text(request.resource.data.displayName, 80))
+        // admins decide, but not on their own record (no locking out the last admin)
+        || (isAdmin() && request.auth.uid != uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'status', 'requestedRole', 'awaiting', 'decidedBy', 'decidedAt'])
+          && request.resource.data.status in ['pending', 'approved', 'rejected', 'disabled']
+          && (request.resource.data.status != 'approved' || roleValue(request.resource.data.role))
+          && request.resource.data.decidedBy == request.auth.uid)
+      );
+
+      allow delete: if false;
+    }
+
+    match /patients/{patientId} {
+      allow read: if canRead();
+      allow create: if isStaff() && validPatient(request.resource.data)
+        && request.resource.data.createdBy == request.auth.uid;
+      // identity fields are immutable
+      allow update: if isStaff() && validPatient(request.resource.data)
+        && request.resource.data.code == resource.data.code
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;                      // archive instead; history is kept
+
+      // Prescription versions are append-only: a client may add a version and mark the
+      // previous one "superseded", nothing else.
+      match /prescriptions/{versionId} {
+        allow read: if canRead();
+        allow create: if isStaff()
+          && request.resource.data.status == 'current'
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.version is int
+          && request.resource.data.exercises is list
+          && request.resource.data.exercises.size() <= 40
+          && text(request.resource.data.reason, 500);
+        allow update: if isStaff()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status == 'superseded';
+        allow delete: if false;
+      }
+    }
+
+    // Session results and calibration records are written by staff and volunteers who run
+    // sessions; they are never deleted. (Ids are the session id / "exercise@camera".)
+    match /patients/{patientId}/sessions/{sessionId} {
+      allow read: if canRead();
+      allow create, update: if canRead()
+        && request.resource.data.id == sessionId
+        && request.resource.data.patientId == patientId
+        && request.resource.data.savedBy == request.auth.uid
+        && request.resource.data.exercises is list
+        && request.resource.data.exercises.size() <= 40;
+      allow delete: if false;
+    }
+
+    match /patients/{patientId}/calibrations/{slotId} {
+      allow read: if canRead();
+      allow create, update: if isStaff()
+        && request.resource.data.calibratedBy == request.auth.uid
+        && request.resource.data.keptReps is int;
+      allow delete: if false;
+    }
+
+    // Next patient number + tag assignments (written inside transactions by staff).
+    match /meta/registry {
+      allow read: if canRead();
+      allow create, update: if isStaff()
+        && request.resource.data.keys().hasOnly(['nextCode', 'tags'])
+        && request.resource.data.nextCode is int;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

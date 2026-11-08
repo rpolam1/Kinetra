@@ -1,0 +1,89 @@
+name: build camera app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths: ["vision/**", ".github/workflows/build-camera.yml"]
+    tags: ["v*"]
+
+permissions:
+  contents: write  # needed to create the release
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, name: windows-x64 }
+          - { os: ubuntu-22.04, name: linux-x64 }
+          - { os: ubuntu-22.04-arm, name: linux-arm64 }  # Jetson and Raspberry Pi class devices
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: system libraries (linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0 libegl1 libgles2
+
+      - name: install
+        working-directory: vision
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: test
+        working-directory: vision
+        run: python -m pytest tests -q
+
+      - name: build
+        working-directory: vision
+        run: pyinstaller --noconfirm packaging/kinetra-camera.spec
+
+      - name: smoke test the built app
+        working-directory: vision
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then dist/kinetra-camera/kinetra-camera.exe --selftest
+          else dist/kinetra-camera/kinetra-camera --selftest; fi
+
+      - name: package
+        working-directory: vision/dist
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then 7z a ../../kinetra-camera-${{ matrix.name }}.zip kinetra-camera
+          else tar czf ../../kinetra-camera-${{ matrix.name }}.tar.gz kinetra-camera; fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: kinetra-camera-${{ matrix.name }}
+          path: kinetra-camera-${{ matrix.name }}.*
+
+  release:
+    needs: build
+    if: ${{ !cancelled() }}  # publish whatever built, even if one platform failed
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: kinetra-camera-*
+          merge-multiple: true
+
+      - name: publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('build-{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('Camera app build {0}', github.run_number) }}
+          target_commitish: ${{ github.sha }}
+          body: |
+            Camera app built from commit ${{ github.sha }}.
+
+            - `kinetra-camera-windows-x64.zip`: Windows. Unzip, then run `kinetra-camera.exe`.
+            - `kinetra-camera-linux-x64.tar.gz`: Linux PC. `tar xzf` it, then run `./kinetra-camera/kinetra-camera`.
+            - `kinetra-camera-linux-arm64.tar.gz`: Jetson and Raspberry Pi class devices (same steps as Linux).
+          files: kinetra-camera-*
