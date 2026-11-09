@@ -41,6 +41,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.kinetra.app
         TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
   KinetraWatch:
     type: application
     platform: watchOS
