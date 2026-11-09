@@ -66,6 +66,35 @@ describe('buildReportHtml', () => {
   });
 });
 
+describe('timed exercises in the report', () => {
+  const timed = (day: number, best: number, completed: number) =>
+    session(`t${day}`, day, [
+      result({ exerciseId: 'wall_sit', name: 'Wall sit', tracking: 'timed', reps: completed, good: 0, avgScore: null, avgRom: null, avgRepSeconds: 30, holdAttempts: 3, holdsCompleted: completed, bestHoldSeconds: best, avgHoldSeconds: best - 4 }),
+      result(),
+    ]);
+  const html = buildReportHtml(patient, buildProgressReport([timed(0, 10, 0), timed(8, 29, 2)]), 0);
+  const [, wallSit = ''] = html.split('<h3>Wall sit</h3>');
+  const wallSitSection = wallSit.split('</section>')[0]!;
+
+  it('shows hold charts and a hold table for the timed exercise', () => {
+    assert.ok(wallSitSection.includes('Longest hold'));
+    assert.ok(wallSitSection.includes('Holds completed'));
+    assert.ok(wallSitSection.includes('Holds attempted'));
+    assert.ok(!wallSitSection.includes('Range of motion'));
+    assert.ok(!wallSitSection.includes('Tempo'));
+  });
+
+  it('keeps range of motion and tempo for rep exercises on the same report', () => {
+    const squat = html.split('<h3>Goblet squat</h3>')[1]!.split('</section>')[0]!;
+    assert.ok(squat.includes('Range of motion'));
+    assert.ok(squat.includes('Tempo'));
+  });
+
+  it('writes a highlight about the longer hold', () => {
+    assert.match(highlights(buildProgressReport([timed(0, 10, 0), timed(8, 29, 2)])).join(' '), /longest hold is up 19 seconds/);
+  });
+});
+
 describe('highlights', () => {
   it('reports improvements, regressions and readiness', () => {
     const better = buildProgressReport([

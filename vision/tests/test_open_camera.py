@@ -23,7 +23,7 @@ class FakeCv2:
     def __init__(self, cams):
         self.cams, self.tried = cams, []
 
-    def VideoCapture(self, i):
+    def VideoCapture(self, i, *backend):
         self.tried.append(i)
         return self.cams.get(i, FakeCap(False, False))
 

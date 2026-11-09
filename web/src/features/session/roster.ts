@@ -1,6 +1,6 @@
-import { getExercise } from '../../domain';
+import { DOSE_GUIDELINES, computeAge, getExercise, hasBetaBlocker, heartRateZone } from '../../domain';
 import type { Patient, Prescription } from '../../domain';
-import type { Light, LiveParticipant, LiveProgress, PlanItem, SessionParticipantInput } from '../../services/hub/types';
+import type { HeartStatus, HeartZoneInput, Light, LiveParticipant, LiveProgress, PlanItem, SessionParticipantInput } from '../../services/hub/types';
 import type { IconName } from '../../ui/icons';
 
 export function planFromPrescription(prescription: Prescription): PlanItem[] {
@@ -39,9 +39,43 @@ export function rosterProblems(patient: Patient, prescription: Prescription | nu
   return problems;
 }
 
-export function toParticipantInput(patient: Patient, prescription: Prescription): SessionParticipantInput {
-  return { patient_id: patient.code, board_name: patient.boardName, plan: planFromPrescription(prescription) };
+export function heartZoneFor(patient: Patient, prescription: Prescription): HeartZoneInput | null {
+  const zone = heartRateZone({
+    age: computeAge(patient.dateOfBirth),
+    restingHr: patient.restingHr,
+    maxHr: patient.maxHr,
+    lowPct: prescription.cardio?.intensityLowPct ?? DOSE_GUIDELINES.cardioIntensityPct.low,
+    highPct: prescription.cardio?.intensityHighPct ?? DOSE_GUIDELINES.cardioIntensityPct.high,
+  });
+  if (!zone || zone.lowBpm >= zone.highBpm) return null;
+  return { resting: zone.restingHr, max: zone.maxHr, low: zone.lowBpm, high: zone.highBpm, reliable: !hasBetaBlocker(patient) };
 }
+
+export function toParticipantInput(patient: Patient, prescription: Prescription): SessionParticipantInput {
+  return {
+    patient_id: patient.code,
+    board_name: patient.boardName,
+    plan: planFromPrescription(prescription),
+    heart_zone: heartZoneFor(patient, prescription),
+  };
+}
+
+export interface HeartTone {
+  label: string;
+  text: string;
+  tint: string;
+  pulse: boolean;
+}
+
+export const HEART_TONES: Readonly<Record<HeartStatus, HeartTone>> = {
+  high: { label: 'Very high', text: 'text-red-800', tint: 'bg-red-100', pulse: true },
+  above: { label: 'Above zone', text: 'text-amber-900', tint: 'bg-amber-100', pulse: true },
+  in_zone: { label: 'In zone', text: 'text-emerald-900', tint: 'bg-emerald-100', pulse: true },
+  below: { label: 'Below zone', text: 'text-sky-900', tint: 'bg-sky-100', pulse: true },
+  no_target: { label: 'No zone', text: 'text-slate-800', tint: 'bg-slate-100', pulse: true },
+  unreliable: { label: 'Reference only', text: 'text-slate-800', tint: 'bg-slate-100', pulse: true },
+  no_signal: { label: 'No signal', text: 'text-slate-500', tint: 'bg-slate-50', pulse: false },
+};
 
 export interface LightMeta {
   label: string;

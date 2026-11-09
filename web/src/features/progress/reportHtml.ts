@@ -1,6 +1,6 @@
 import { computeAge, formatPercent, formatWeek } from '../../domain';
-import type { ExerciseProgress, Patient, ProgressReport, WeekPoint } from '../../domain';
-import { METRICS, changeTone, describeChange, fmtDegrees, fmtSeconds } from './format';
+import type { ExerciseProgress, HeartProgress, Patient, ProgressReport, WeekPoint } from '../../domain';
+import { changeTone, describeChange, fmtDegrees, fmtSeconds, metricsFor } from './format';
 import type { MetricSpec } from './format';
 
 const TEAL = '#0f766e';
@@ -29,8 +29,8 @@ function longDate(ms: number | null): string {
   return ms === null ? '' : new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-interface ChartOptions {
-  pick: (w: WeekPoint) => number | null;
+interface ChartOptions<T extends { weekStart: number }> {
+  pick: (w: T) => number | null;
   format: (v: number) => string;
   min?: number;
   max?: number;
@@ -41,7 +41,7 @@ const W = 240;
 const H = 112;
 const PAD = { left: 38, right: 14, top: 14, bottom: 22 };
 
-function lineChart(weeks: readonly WeekPoint[], o: ChartOptions): string {
+function lineChart<T extends { weekStart: number }>(weeks: readonly T[], o: ChartOptions<T>): string {
   const values = weeks.map(o.pick);
   const present = values.filter((v): v is number => v !== null);
   if (present.length === 0) {
@@ -127,11 +127,27 @@ function chips(ex: ExerciseProgress): string {
   const change = ex.change;
   return (
     `<div class="chips">` +
-    METRICS.map((m) => {
+    metricsFor(ex).map((m) => {
       const c = toneColor(changeTone(m, change[m.key]));
       return `<span class="chip" style="color:${c.fg};background:${c.bg}">${escapeHtml(m.title.split(' (')[0]!)}: ${escapeHtml(describeChange(m, change[m.key]))}</span>`;
     }).join('') +
     `</div>`
+  );
+}
+
+function holdTable(weeks: readonly WeekPoint[]): string {
+  const dash = '&mdash;';
+  const rows = weeks
+    .map(
+      (w) =>
+        `<tr><td>${escapeHtml(formatWeek(w.weekStart))}</td><td>${w.sessions}</td><td>${w.holdAttempts}</td><td>${w.holdsCompleted}</td>` +
+        `<td>${w.bestHoldSeconds === null ? dash : escapeHtml(fmtSeconds(w.bestHoldSeconds))}</td>` +
+        `<td>${w.avgHoldSeconds === null ? dash : escapeHtml(fmtSeconds(w.avgHoldSeconds))}</td></tr>`,
+    )
+    .join('');
+  return (
+    `<table><thead><tr><th>Week of</th><th>Sessions</th><th>Holds attempted</th><th>Holds completed</th><th>Longest hold</th><th>Average hold</th></tr></thead>` +
+    `<tbody>${rows}</tbody></table>`
   );
 }
 
@@ -154,7 +170,7 @@ function table(weeks: readonly WeekPoint[]): string {
 }
 
 function exerciseSection(ex: ExerciseProgress): string {
-  const charts = METRICS.map(
+  const charts = metricsFor(ex).map(
     (m: MetricSpec) =>
       `<div class="chart"><h4>${escapeHtml(m.title)}</h4>${lineChart(ex.weeks, { pick: m.pick, format: m.format, min: m.min, max: m.max })}</div>`,
   ).join('');
@@ -163,17 +179,41 @@ function exerciseSection(ex: ExerciseProgress): string {
     : '';
   return (
     `<section class="exercise">` +
-    `<div class="ex-head"><h3>${escapeHtml(ex.name)}</h3><span class="meta">${ex.sessions} session${ex.sessions === 1 ? '' : 's'} &middot; ${ex.reps} reps</span></div>` +
+    `<div class="ex-head"><h3>${escapeHtml(ex.name)}</h3><span class="meta">${ex.sessions} session${ex.sessions === 1 ? '' : 's'} &middot; ${ex.timed ? `${ex.holdsCompleted} of ${ex.holdAttempts} holds completed` : `${ex.reps} reps`}</span></div>` +
     chips(ex) +
     ready +
     `<div class="charts">${charts}</div>` +
-    table(ex.weeks) +
+    (ex.timed ? holdTable(ex.weeks) : table(ex.weeks)) +
     `</section>`
+  );
+}
+
+function heartSection(heart: HeartProgress): string {
+  const bpm = (v: number) => `${Math.round(v)}`;
+  const share = (v: number | null) => (v === null ? '&mdash;' : formatPercent(v));
+  const zone = heart.zoneLow !== null && heart.zoneHigh !== null ? `${heart.zoneLow} to ${heart.zoneHigh} bpm` : 'not set';
+  const stats: [string, string][] = [
+    ['Average heart rate', heart.avgBpm !== null ? `${Math.round(heart.avgBpm)} bpm` : '&mdash;'],
+    ['Highest recorded', heart.peakBpm !== null ? `${Math.round(heart.peakBpm)} bpm` : '&mdash;'],
+    ['Time in target zone', share(heart.inZoneRate)],
+    ['Above / below zone', `${share(heart.aboveRate)} / ${share(heart.belowRate)}`],
+  ];
+  return (
+    `<section class="exercise heart">` +
+    `<div class="ex-head"><h3>Heart rate</h3><span class="meta">${heart.sessions} session${heart.sessions === 1 ? '' : 's'} with a watch &middot; target zone ${escapeHtml(zone)}</span></div>` +
+    `<div class="kpis four">${stats.map(([l, v]) => `<div class="kpi small"><div class="v">${v}</div><div class="l">${escapeHtml(l)}</div></div>`).join('')}</div>` +
+    `<div class="charts two">` +
+    `<div class="chart"><h4>Average heart rate (bpm)</h4>${lineChart(heart.weeks, { pick: (w) => w.avgBpm, format: bpm, color: '#be123c' })}</div>` +
+    `<div class="chart"><h4>Time in target zone</h4>${lineChart(heart.weeks, { pick: (w) => w.inZoneRate, format: (v) => `${Math.round(v * 100)}%`, min: 0, max: 1 })}</div>` +
+    `</div></section>`
   );
 }
 
 export function highlights(report: ProgressReport): string[] {
   const out: string[] = [];
+  if (report.heart && report.heart.inZoneRate !== null) {
+    out.push(`Heart rate was in the target zone ${Math.round(report.heart.inZoneRate * 100)}% of the recorded time.`);
+  }
   const weekCount = report.weeks.length;
   if (weekCount > 0) {
     const perWeek = report.sessionCount / weekCount;
@@ -182,6 +222,8 @@ export function highlights(report: ProgressReport): string[] {
   for (const ex of report.exercises) {
     const c = ex.change;
     if (!c) continue;
+    if (c.bestHoldSeconds !== null && c.bestHoldSeconds >= 3) out.push(`${ex.name}: longest hold is up ${Math.round(c.bestHoldSeconds)} seconds since the first week.`);
+    if (c.bestHoldSeconds !== null && c.bestHoldSeconds <= -3) out.push(`Worth a look: ${ex.name} longest hold is down ${Math.round(Math.abs(c.bestHoldSeconds))} seconds.`);
     if (c.avgRom !== null && c.avgRom >= 5) out.push(`${ex.name}: range of motion is up ${Math.round(c.avgRom)}° since the first week.`);
     if (c.goodRate !== null && c.goodRate >= 0.1) out.push(`${ex.name}: good-rep rate is up ${Math.round(c.goodRate * 100)} points.`);
     if (c.goodRate !== null && c.goodRate <= -0.1) out.push(`Worth a look: ${ex.name} good-rep rate is down ${Math.round(Math.abs(c.goodRate) * 100)} points.`);
@@ -225,6 +267,9 @@ ul.hl li { margin: 1mm 0; }
 .callout { margin-top: 3mm; border-radius: 2mm; padding: 2.5mm 3.5mm; font-size: 9.5pt; }
 .callout.good { background: #d1fae5; color: #065f46; }
 .charts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin-top: 3mm; }
+.charts.two { grid-template-columns: repeat(2, 1fr); }
+.kpis.four { margin-top: 3mm; }
+.kpi.small .v { font-size: 14pt; }
 .chart { border: 0.3mm solid ${GRID}; border-radius: 2mm; padding: 2mm 2.5mm 1mm; }
 .chart h4 { font-size: 8.5pt; color: #334155; font-weight: 700; }
 .empty { color: ${MUTED}; font-size: 9pt; text-align: center; padding: 12mm 0; }
@@ -262,12 +307,15 @@ export function buildReportHtml(patient: Patient, report: ProgressReport, genera
     `<div class="kpis">${kpis.map(([l, v]) => `<div class="kpi"><div class="v">${v}</div><div class="l">${escapeHtml(l)}</div></div>`).join('')}</div>` +
     `<section class="overview"><h2>Highlights</h2><ul class="hl">${points.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul></section>` +
     `<section class="overview"><h2>Repetitions per week</h2>${barChart(report.weeks)}</section>` +
+    (report.heart ? `<h2 class="exercises-title">Heart rate</h2>${heartSection(report.heart)}` : '') +
     `<h2 class="exercises-title">Exercise progress</h2>` +
     report.exercises.map(exerciseSection).join('') +
     `<section class="how"><h2>How to read this report</h2><dl>` +
     `<dt>Good-rep rate</dt><dd>The share of scored repetitions rated good form (score 80 or higher).</dd>` +
     `<dt>Form score</dt><dd>Each repetition is compared with this person's own calibrated reference for the exercise, from 0 to 100.</dd>` +
     `<dt>Range of motion</dt><dd>How far the main joint moved, in degrees, measured from camera images. It depends on camera position, so compare weeks recorded with the same setup.</dd>` +
+    `<dt>Hold time</dt><dd>For timed exercises such as the wall sit or plank: how long each hold lasted, counting attempts that stopped before the target. A hold under 3 seconds is ignored.</dd>` +
+    (report.heart ? `<dt>Heart rate</dt><dd>Recorded by an Apple Watch worn during the session. The target zone comes from this person's resting heart rate and the prescribed intensity (heart-rate reserve method). Wrist readings can be inaccurate during vigorous arm movement, and people on beta blockers may not reach their calculated zone.</dd>` : '') +
     `<dt>Seconds per rep</dt><dd>Average time for one repetition. A slower, controlled tempo is not a problem; a much faster one can mean less control.</dd></dl>` +
     `<p class="legal">This report supports coaching and is not a clinical measurement or diagnosis.</p></section>` +
     `</body></html>`

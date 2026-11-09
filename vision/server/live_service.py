@@ -4,6 +4,7 @@ import time
 
 from server.calibration import CalibrationError, CalibrationManager
 from server.fusion import compute_sets
+from server.heart import evaluate, summarize
 from server.live import LiveBus, PresenceTracker, compute_light
 from server.session import SessionError, SessionManager, exercise_progress
 
@@ -73,10 +74,20 @@ class LiveService:
                         "load": item["load"], "modification": item["modification"],
                         "index": p["index"], "total": len(p["plan"]), "next": nxt}
             progress = exercise_progress(item, self._exercise_reps(pid, p), self.core.set_gap, now)
+        heart = self.heart_view(pid, p.get("heart_zone"), now)
+        if not p["finished"] and heart["status"] == "high":
+            light, reason = "needs_help", f"Heart rate very high ({heart['bpm']} bpm). Check on them"
         return {"patient_id": pid, "board_name": p["board_name"], "light": light, "reason": reason,
-                "present": present, "cameras": seen["cameras"] if seen else [],
+                "heart_rate": heart, "present": present, "cameras": seen["cameras"] if seen else [],
                 "exercise": exercise, "progress": progress, "recent_scores": scores,
                 "last_rep_at": last_rep_at, "finished": p["finished"], "done_count": len(p["done"])}
+
+    def heart_view(self, patient_id, zone, now=None):
+        return evaluate(self.core.heart.latest(patient_id), self.clock() if now is None else now, zone)
+
+    def heart_status(self, patient_id):
+        p = self.session.participant(patient_id) if self.session.active else None
+        return self.heart_view(patient_id, p.get("heart_zone") if p else None)
 
     def live_snapshot(self):
         now = self.clock()
@@ -196,6 +207,11 @@ class LiveService:
                 prog = exercise_progress(item, reps, self.core.set_gap, now)
                 roms = [r["rom"] for r in reps if r.get("rom") is not None]
                 tempos = [r["t_end"] - r["t_start"] for r in reps if r["t_end"] > r["t_start"]]
+                holds = self.core.holds.for_patient(pid, item["exercise_id"], sess["started_at"])
+                held = [h["seconds"] for h in holds]
+                spans = [(r["t_start"], r["t_end"]) for r in reps] + [(h["t_start"], h["t_end"]) for h in holds]
+                during = (summarize(self.core.heart.between(pid, min(a for a, _ in spans), max(b for _, b in spans)),
+                                    p.get("heart_zone")) if spans else None)
                 exercises.append({
                     "exercise_id": item["exercise_id"], "name": item["name"], "tracking": item["tracking"],
                     "target_sets": item["sets"], "target_reps": item["reps"], "reps": len(reps),
@@ -206,9 +222,17 @@ class LiveService:
                     "avg_score": round(sum(scores) / len(scores), 1) if scores else None,
                     "avg_rom": round(sum(roms) / len(roms), 1) if roms else None,
                     "avg_rep_seconds": round(sum(tempos) / len(tempos), 2) if tempos else None,
+                    "hold_attempts": len(holds),
+                    "holds_completed": sum(1 for h in holds if h["completed"]),
+                    "best_hold_seconds": round(max(held), 1) if held else None,
+                    "avg_hold_seconds": round(sum(held) / len(held), 1) if held else None,
+                    "avg_hr": during["avg_bpm"] if during else None,
+                    "peak_hr": during["max_bpm"] if during else None,
                     "completed": any(d["index"] == i for d in p["done"]) or prog["target_met"],
                 })
-            out.append({"patient_id": pid, "board_name": p["board_name"], "exercises": exercises})
+            ended = sess["ended_at"] or now
+            heart = summarize(self.core.heart.between(pid, sess["started_at"], ended), p.get("heart_zone"))
+            out.append({"patient_id": pid, "board_name": p["board_name"], "exercises": exercises, "heart": heart})
         return {"session_id": sess["id"], "started_at": sess["started_at"],
                 "ended_at": sess["ended_at"] or now, "participants": out}
 

@@ -96,7 +96,10 @@ describe('changeBetween', () => {
       session('a', 0, [result({ avgRom: 60, avgScore: 70, good: 5, reps: 10, avgRepSeconds: 1.5 })]),
       session('b', 8, [result({ avgRom: 75, avgScore: 85, good: 9, reps: 10, avgRepSeconds: 2.5 })]),
     ];
-    assert.deepEqual(changeBetween(weeklyProgress(sessions)), { goodRate: 0.4, avgScore: 15, avgRom: 15, avgRepSeconds: 1 });
+    const change = changeBetween(weeklyProgress(sessions))!;
+    assert.deepEqual([change.goodRate, change.avgScore, change.avgRom, change.avgRepSeconds], [0.4, 15, 15, 1]);
+    assert.equal(change.bestHoldSeconds, null);
+    assert.equal(change.holdsCompleted, null);
   });
 });
 
@@ -147,5 +150,73 @@ describe('sessionsFromSummary with rom and tempo', () => {
     const [s] = sessionsFromSummary(summary({}), { 'P-0001': 'p1' }, 'u1');
     assert.equal(s!.exercises[0]!.avgRom, null);
     assert.equal(s!.exercises[0]!.avgRepSeconds, null);
+  });
+});
+
+function holdResult(over: Partial<ExerciseResult> = {}): ExerciseResult {
+  return result({
+    exerciseId: 'wall_sit', name: 'Wall sit', tracking: 'timed', targetReps: null, reps: 1, good: 0, needsCorrection: 0, flagged: 0,
+    avgScore: null, avgRom: null, avgRepSeconds: 30, holdAttempts: 3, holdsCompleted: 1, bestHoldSeconds: 31, avgHoldSeconds: 21, ...over,
+  });
+}
+
+describe('timed exercises', () => {
+  it('aggregates hold attempts, completions, best and attempt-weighted average hold time', () => {
+    const sessions = [
+      session('a', 0, [holdResult({ holdAttempts: 2, holdsCompleted: 0, bestHoldSeconds: 12, avgHoldSeconds: 10, reps: 0 })]),
+      session('b', 2, [holdResult({ holdAttempts: 4, holdsCompleted: 2, bestHoldSeconds: 33, avgHoldSeconds: 25 })]),
+    ];
+    const week = weeklyProgress(sessions, 'wall_sit')[0]!;
+    assert.equal(week.holdAttempts, 6);
+    assert.equal(week.holdsCompleted, 2);
+    assert.equal(week.bestHoldSeconds, 33);
+    assert.equal(week.avgHoldSeconds, 20);
+  });
+
+  it('keeps an exercise that only has attempts shorter than the target', () => {
+    const sessions = [session('a', 0, [holdResult({ reps: 0, holdsCompleted: 0, holdAttempts: 2, bestHoldSeconds: 9, avgHoldSeconds: 7 })])];
+    const report = buildProgressReport(sessions);
+    assert.equal(report.sessionCount, 1);
+    assert.equal(report.exercises.length, 1);
+    assert.equal(report.exercises[0]!.timed, true);
+    assert.equal(report.exercises[0]!.holdAttempts, 2);
+    assert.equal(report.exercises[0]!.holdsCompleted, 0);
+  });
+
+  it('reports the change in longest hold between the first and last week', () => {
+    const sessions = [
+      session('a', 0, [holdResult({ bestHoldSeconds: 10, avgHoldSeconds: 9, holdsCompleted: 0 })]),
+      session('b', 8, [holdResult({ bestHoldSeconds: 28, avgHoldSeconds: 22, holdsCompleted: 2 })]),
+    ];
+    const ex = buildProgressReport(sessions).exercises[0]!;
+    assert.equal(ex.change!.bestHoldSeconds, 18);
+    assert.equal(ex.change!.avgHoldSeconds, 13);
+    assert.equal(ex.change!.holdsCompleted, 2);
+    assert.equal(ex.readyToProgress, false);
+  });
+
+  it('does not mark rep exercises as timed or invent hold data for them', () => {
+    const ex = buildProgressReport([session('a', 0, [result()])]).exercises[0]!;
+    assert.equal(ex.timed, false);
+    assert.equal(ex.weeks[0]!.holdAttempts, 0);
+    assert.equal(ex.weeks[0]!.bestHoldSeconds, null);
+  });
+});
+
+describe('sessionsFromSummary with hold statistics', () => {
+  const base = { exercise_id: 'wall_sit', name: 'Wall sit', tracking: 'timed' as const, target_sets: 1, target_reps: null, reps: 1, sets: 1, good: 0, needs_correction: 0, flagged: 0, avg_score: null, completed: true };
+  const summary = (extra: object) => ({ session_id: 's1', started_at: 100, ended_at: 200, participants: [{ patient_id: 'P-0001', board_name: 'Al', exercises: [{ ...base, ...extra }] }] });
+
+  it('carries hold statistics through', () => {
+    const [s] = sessionsFromSummary(summary({ hold_attempts: 3, holds_completed: 1, best_hold_seconds: 31, avg_hold_seconds: 21 }), { 'P-0001': 'p1' }, 'u1');
+    const e = s!.exercises[0]!;
+    assert.deepEqual([e.holdAttempts, e.holdsCompleted, e.bestHoldSeconds, e.avgHoldSeconds], [3, 1, 31, 21]);
+  });
+
+  it('defaults to zero and null, and still saves a session with only short attempts', () => {
+    const [none] = sessionsFromSummary(summary({}), { 'P-0001': 'p1' }, 'u1');
+    assert.deepEqual([none!.exercises[0]!.holdAttempts, none!.exercises[0]!.bestHoldSeconds], [0, null]);
+    const [short] = sessionsFromSummary(summary({ reps: 0, completed: false, hold_attempts: 2, best_hold_seconds: 8 }), { 'P-0001': 'p1' }, 'u1');
+    assert.equal(short!.exercises[0]!.holdAttempts, 2);
   });
 });

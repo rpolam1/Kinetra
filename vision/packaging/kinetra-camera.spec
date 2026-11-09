@@ -22,7 +22,7 @@ a = Analysis(
     datas=datas,
     binaries=binaries,
     hiddenimports=hiddenimports,
-    excludes=["tkinter", "pytest", "IPython", "jupyter"],
+    excludes=["tkinter", "matplotlib", "pytest", "IPython", "jupyter"],
 )
 pyz = PYZ(a.pure)
 exe = EXE(

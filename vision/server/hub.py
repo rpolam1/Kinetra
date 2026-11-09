@@ -13,8 +13,11 @@ import webbrowser
 from flask import Flask, Response, jsonify, request, send_from_directory
 
 from server.fusion import RepFusion, compute_sets
+from server.heart import HeartLog
+from server.holds import HoldLog
 from server.live_service import LiveService
 from server.routes_live import register_live_routes
+from server.routes_vitals import register_vitals_routes
 from server.store import Store
 from formcheck.paths import EXERCISES_PATH, WEB_DIST_DIR
 from formcheck.discovery import (DEFAULT_HTTP_PORT, DISCOVERY_PORT, HUB_HEADER,
@@ -32,6 +35,9 @@ class HubCore:
         self.lock = threading.RLock()
         self.store = Store(db_path)
         self.fusion = RepFusion()
+        self.holds = HoldLog()
+        self.heart = HeartLog(self.store)
+        self.devices = {}
         self.set_gap = float(set_gap_seconds)
         self.cameras = {}
         self.patients_seen = set()
@@ -62,6 +68,8 @@ class HubCore:
                     continue
                 if ev.get("type") == "rep" and not self._valid_rep(ev):
                     continue
+                if ev.get("type") == "hold" and not self._valid_hold(ev):
+                    continue
                 if self.store.insert_event(ev) is None:
                     duplicates += 1
                     continue
@@ -82,8 +90,28 @@ class HubCore:
         except (KeyError, TypeError, ValueError):
             return False
 
+    @staticmethod
+    def _valid_hold(ev):
+        try:
+            return (float(ev["t_end"]) > float(ev["t_start"]) and bool(ev.get("exercise"))
+                    and 0 < float(ev["seconds"]) < 3600)
+        except (KeyError, TypeError, ValueError):
+            return False
+
     def _apply(self, ev):
         kind = ev.get("type")
+        if kind == "hold":
+            if ev.get("patient_id"):
+                self.patients_seen.add(ev["patient_id"])
+            target = ev.get("target_seconds")
+            self.holds.add({
+                "camera_id": ev["camera_id"], "track_key": ev.get("track_key"), "patient_id": ev.get("patient_id"),
+                "exercise": ev["exercise"], "t_start": float(ev["t_start"]), "t_end": float(ev["t_end"]),
+                "seconds": float(ev["seconds"]),
+                "target_seconds": float(target) if isinstance(target, (int, float)) else None,
+                "completed": bool(ev.get("completed")),
+            })
+            return
         if kind == "rep":
             if ev.get("patient_id"):
                 self.patients_seen.add(ev["patient_id"])
@@ -99,6 +127,7 @@ class HubCore:
         elif kind == "bind" and ev.get("patient_id") and ev.get("track_key"):
             self.patients_seen.add(ev["patient_id"])
             self.fusion.bind(ev["track_key"], ev["patient_id"])
+            self.holds.bind(ev["track_key"], ev["patient_id"])
 
     def _exercise_summary(self, reps):
         sets = compute_sets(reps, self.set_gap)
@@ -257,6 +286,7 @@ def create_app(core=None, api_key=None, name=None, web_dir=None):
 
 
     register_live_routes(app, core)
+    register_vitals_routes(app, core)
 
     def _valid_tag(tag_id):
         return 0 <= tag_id <= MAX_TAG_ID

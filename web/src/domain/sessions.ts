@@ -1,4 +1,4 @@
-import type { SessionSummary } from '../services/hub/types';
+import type { SessionHeartSummary, SessionSummary } from '../services/hub/types';
 import type { TrackingMode } from './types';
 
 export interface ExerciseResult {
@@ -15,7 +15,26 @@ export interface ExerciseResult {
   avgScore: number | null;
   avgRom?: number | null;
   avgRepSeconds?: number | null;
+  holdAttempts?: number;
+  holdsCompleted?: number;
+  bestHoldSeconds?: number | null;
+  avgHoldSeconds?: number | null;
+  avgHr?: number | null;
+  peakHr?: number | null;
   completed: boolean;
+}
+
+export interface SessionHeart {
+  samples: number;
+  avgBpm: number;
+  minBpm: number;
+  maxBpm: number;
+  secondsTotal: number;
+  secondsInZone: number | null;
+  secondsBelow: number | null;
+  secondsAbove: number | null;
+  zoneLow: number | null;
+  zoneHigh: number | null;
 }
 
 export interface PatientSession {
@@ -24,6 +43,7 @@ export interface PatientSession {
   startedAt: number;
   endedAt: number;
   exercises: ExerciseResult[];
+  heart?: SessionHeart | null;
   savedBy: string;
 }
 
@@ -35,6 +55,22 @@ export interface CalibrationRecord {
   warnings: string[];
   calibratedAt: number;
   calibratedBy: string;
+}
+
+export function heartFromSummary(h: SessionHeartSummary | null | undefined): SessionHeart | null {
+  if (!h || h.samples <= 0) return null;
+  return {
+    samples: h.samples,
+    avgBpm: h.avg_bpm,
+    minBpm: h.min_bpm,
+    maxBpm: h.max_bpm,
+    secondsTotal: h.seconds_total,
+    secondsInZone: h.seconds_in_zone,
+    secondsBelow: h.seconds_below,
+    secondsAbove: h.seconds_above,
+    zoneLow: h.zone?.low ?? null,
+    zoneHigh: h.zone?.high ?? null,
+  };
 }
 
 const toMs = (seconds: number): number => Math.round(seconds * 1000);
@@ -62,15 +98,22 @@ export function sessionsFromSummary(
       avgScore: e.avg_score,
       avgRom: e.avg_rom ?? null,
       avgRepSeconds: e.avg_rep_seconds ?? null,
+      holdAttempts: e.hold_attempts ?? 0,
+      holdsCompleted: e.holds_completed ?? 0,
+      bestHoldSeconds: e.best_hold_seconds ?? null,
+      avgHoldSeconds: e.avg_hold_seconds ?? null,
+      avgHr: e.avg_hr ?? null,
+      peakHr: e.peak_hr ?? null,
       completed: e.completed,
     }));
-    if (!exercises.some((e) => e.reps > 0 || e.completed)) continue;
+    if (!exercises.some((e) => e.reps > 0 || e.completed || (e.holdAttempts ?? 0) > 0)) continue;
     out.push({
       id: summary.session_id,
       patientId,
       startedAt: toMs(summary.started_at),
       endedAt: toMs(summary.ended_at),
       exercises,
+      heart: heartFromSummary(person.heart),
       savedBy: actorUid,
     });
   }

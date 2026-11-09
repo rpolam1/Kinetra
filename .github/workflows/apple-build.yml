@@ -1,0 +1,93 @@
+name: apple build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "apple/**"
+      - ".github/workflows/apple-build.yml"
+  pull_request:
+    paths:
+      - "apple/**"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apple
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: xcode version
+        run: xcodebuild -version
+
+      - name: install xcodegen
+        run: brew install xcodegen
+
+      - name: generate project
+        run: xcodegen generate
+
+      - name: pick an iphone simulator
+        id: sim
+        run: |
+          UDID="$(xcrun simctl list devices available iPhone | grep -Eo '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}' | head -1)"
+          test -n "$UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: build iphone app with embedded watch app
+        run: |
+          set -o pipefail
+          xcodebuild build -project Kinetra.xcodeproj -scheme Kinetra \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/build-ios.log"
+
+      - name: build watch app
+        run: |
+          set -o pipefail
+          xcodebuild build -project Kinetra.xcodeproj -scheme KinetraWatch \
+            -destination "generic/platform=watchOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/build-watch.log"
+
+      - name: unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test -project Kinetra.xcodeproj -scheme Kinetra \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/test.log"
+
+      - name: summarize compiler errors
+        if: failure()
+        run: |
+          {
+            echo "### Compiler errors"
+            echo '```'
+            grep -hE "error:" "$RUNNER_TEMP"/*.log | sort -u | head -80 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-build-logs
+          path: ${{ runner.temp }}/*.log
+          if-no-files-found: ignore
+
+      - name: package ready to open xcode project
+        if: success()
+        run: |
+          mkdir -p "$RUNNER_TEMP/pkg"
+          rsync -a --exclude build --exclude DerivedData --exclude xcuserdata ./ "$RUNNER_TEMP/pkg/Kinetra-Apple/"
+
+      - name: upload xcode project
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kinetra-Xcode-project
+          path: ${{ runner.temp }}/pkg

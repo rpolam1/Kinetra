@@ -1,10 +1,9 @@
-import type { WeekPoint } from '../../domain';
 import { formatWeek } from '../../domain';
 
-export interface TrendChartProps {
+export interface TrendChartProps<T extends { weekStart: number }> {
   title: string;
-  weeks: readonly WeekPoint[];
-  pick: (w: WeekPoint) => number | null;
+  weeks: readonly T[];
+  pick: (w: T) => number | null;
   format: (v: number) => string;
   min?: number;
   max?: number;
@@ -15,7 +14,7 @@ const WIDTH = 320;
 const HEIGHT = 150;
 const PAD = { left: 44, right: 12, top: 12, bottom: 28 };
 
-export function TrendChart({ title, weeks, pick, format, min, max, color = '#0f766e' }: TrendChartProps) {
+export function TrendChart<T extends { weekStart: number }>({ title, weeks, pick, format, min, max, color = '#0f766e' }: TrendChartProps<T>) {
   const values = weeks.map(pick);
   const present = values.filter((v): v is number => v !== null);
   if (present.length === 0) {

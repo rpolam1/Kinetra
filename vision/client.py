@@ -28,6 +28,8 @@ def load_tag_map(path):
             return {int(k): v for k, v in json.load(f).items()}
     return {}
 
+MIN_HOLD_SECONDS = 3.0
+
 
 class PersonSession:
 
@@ -43,6 +45,9 @@ class PersonSession:
         self.hold_reported = False
         self.holding = False
         self.hold_seconds = 0.0
+        self.hold_peak = 0.0
+        self.hold_last_t = None
+        self.hold_who = None
 
 
 class CameraPipeline:
@@ -91,6 +96,9 @@ class CameraPipeline:
     def _configure(self, sess, patient_id, exercise, now):
         template = self._template_for(patient_id, exercise, now)
         if sess.exercise != exercise or sess.judge is None:
+            if sess.holding:
+                self._finish_hold(sess)
+                sess.holding = False
             cfg = self.configs[exercise]
             sess.exercise = exercise
             sess.extractor = FeatureExtractor(cfg)
@@ -190,13 +198,34 @@ class CameraPipeline:
 
         alive = {t.id for t in self.tracker.tracks}
         for tid in [t for t in self.sessions if t not in alive]:
+            if self.sessions[tid].holding:
+                self._finish_hold(self.sessions[tid])
             del self.sessions[tid]
         return out
 
+    def _finish_hold(self, sess):
+        peak, last_t, who = sess.hold_peak, sess.hold_last_t, sess.hold_who
+        sess.hold_peak, sess.hold_last_t = 0.0, None
+        if peak < MIN_HOLD_SECONDS or last_t is None or who is None or sess.exercise is None:
+            return
+        target = self.configs.get(sess.exercise, {}).get("target_duration_sec")
+        print(f"[hold] ended {who[0] or 'unknown'}: {peak}s")
+        if self.link:
+            self.link.send_hold({"t_start": last_t - peak, "t_end": last_t, "seconds": peak,
+                                 "target_seconds": target, "completed": target is not None and peak >= target},
+                                who[0], who[1], sess.exercise, who[2])
+
     def _on_judgment(self, sess, person, j):
         if j.get("type") == "hold_progress":
+            was_holding = sess.holding
             sess.holding = j["holding"]
             sess.hold_seconds = j["elapsed_seconds"]
+            if sess.holding:
+                sess.hold_peak = max(sess.hold_peak, j["elapsed_seconds"])
+                sess.hold_last_t = j.get("t")
+                sess.hold_who = (person["patient_id"], person["track_id"], person["id_source"])
+            elif was_holding:
+                self._finish_hold(sess)
             if not sess.holding:
                 sess.hold_reported = False
             return
@@ -231,11 +260,21 @@ class CameraPipeline:
             self.on_rep(person, sess, j)
 
 
+def _capture(cv2, i, explicit):
+    # DirectShow opens quickly on Windows; the default driver (MSMF) can freeze on a second camera
+    if sys.platform.startswith("win"):
+        cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+        if cap.isOpened() or not explicit:
+            return cap
+        cap.release()
+    return cv2.VideoCapture(i)
+
+
 def open_camera(cv2, index=None, limit=10):
     # an explicit index is used as given; otherwise take the first camera that really delivers a picture
     candidates = [index] if index is not None else range(limit)
     for i in candidates:
-        cap = cv2.VideoCapture(i)
+        cap = _capture(cv2, i, index is not None)
         if cap.isOpened():
             ok, frame = cap.read()
             if ok and frame is not None:

@@ -13,10 +13,29 @@ export interface PlanItem {
   modification: string;
 }
 
+export type HeartStatus = 'no_signal' | 'no_target' | 'unreliable' | 'below' | 'in_zone' | 'above' | 'high';
+
+export interface HeartZoneInput {
+  resting: number;
+  max: number;
+  low: number;
+  high: number;
+  reliable: boolean;
+}
+
+export interface LiveHeartRate {
+  bpm: number | null;
+  age_seconds: number | null;
+  status: HeartStatus;
+  message: string;
+  zone: { low: number; high: number; max: number; resting: number } | null;
+}
+
 export interface SessionParticipantInput {
   patient_id: string;
   board_name: string;
   plan: PlanItem[];
+  heart_zone?: HeartZoneInput | null;
 }
 
 export interface LiveExercise {
@@ -48,6 +67,7 @@ export interface LiveParticipant {
   board_name: string;
   light: Light;
   reason: string;
+  heart_rate?: LiveHeartRate;
   present: boolean;
   cameras: string[];
   exercise: LiveExercise | null;
@@ -80,14 +100,32 @@ export interface SessionExerciseSummary {
   avg_score: number | null;
   avg_rom?: number | null;
   avg_rep_seconds?: number | null;
+  hold_attempts?: number;
+  holds_completed?: number;
+  best_hold_seconds?: number | null;
+  avg_hold_seconds?: number | null;
+  avg_hr?: number | null;
+  peak_hr?: number | null;
   completed: boolean;
+}
+
+export interface SessionHeartSummary {
+  samples: number;
+  avg_bpm: number;
+  min_bpm: number;
+  max_bpm: number;
+  seconds_total: number;
+  seconds_in_zone: number | null;
+  seconds_below: number | null;
+  seconds_above: number | null;
+  zone: { low: number; high: number; max: number; resting: number } | null;
 }
 
 export interface SessionSummary {
   session_id: string;
   started_at: number;
   ended_at: number;
-  participants: { patient_id: string; board_name: string; exercises: SessionExerciseSummary[] }[];
+  participants: { patient_id: string; board_name: string; exercises: SessionExerciseSummary[]; heart?: SessionHeartSummary | null }[];
 }
 
 export type CalibrationStatus = 'pending' | 'active' | 'finished' | 'cancelled';

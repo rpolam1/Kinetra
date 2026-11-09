@@ -28,11 +28,12 @@ def main():
 
     backends = [("default", None)]
     if sys.platform.startswith("win"):
-        backends.append(("directshow", cv2.CAP_DSHOW))
+        backends = [("directshow", cv2.CAP_DSHOW), ("default", None)]
 
     for name, backend in backends:
         print(f"--- backend: {name}")
         for i in range(args.max):
+            print(f"trying camera {i}...", flush=True)  # if it freezes here, this camera hangs this driver
             frame = probe(i, backend)
             if frame is None:
                 print(f"camera {i}: cannot open, or gives no picture")

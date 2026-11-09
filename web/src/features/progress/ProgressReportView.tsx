@@ -3,7 +3,7 @@ import { buildProgressReport, formatPercent } from '../../domain';
 import type { Patient, PatientSession } from '../../domain';
 import { Badge, Card, EmptyState } from '../../ui/display';
 import { Button } from '../../ui/Button';
-import { METRICS, changeTone, describeChange } from './format';
+import { changeTone, describeChange, metricsFor } from './format';
 import { printProgressReport } from './printReport';
 import { TrendChart } from './TrendChart';
 
@@ -43,21 +43,39 @@ export function ProgressReportView({ patient, sessions }: { patient: Patient; se
         <p className="mt-3 text-sm text-slate-600">The report opens in your browser's print window. Choose Save as PDF as the destination.</p>
       </Card>
 
+      {report.heart ? (
+        <Card
+          title="Heart rate"
+          description={`${report.heart.sessions} session${report.heart.sessions === 1 ? '' : 's'} with a watch${report.heart.zoneLow !== null && report.heart.zoneHigh !== null ? `. Target zone ${report.heart.zoneLow} to ${report.heart.zoneHigh} bpm` : ''}`}
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Stat label="Average" value={report.heart.avgBpm !== null ? `${Math.round(report.heart.avgBpm)} bpm` : '—'} />
+            <Stat label="Highest" value={report.heart.peakBpm !== null ? `${Math.round(report.heart.peakBpm)} bpm` : '—'} />
+            <Stat label="In target zone" value={formatPercent(report.heart.inZoneRate)} />
+            <Stat label="Above zone" value={formatPercent(report.heart.aboveRate)} />
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <TrendChart title="Average heart rate (bpm)" weeks={report.heart.weeks} pick={(w) => w.avgBpm} format={(v) => `${Math.round(v)}`} color="#be123c" />
+            <TrendChart title="Time in target zone" weeks={report.heart.weeks} pick={(w) => w.inZoneRate} format={(v) => `${Math.round(v * 100)}%`} min={0} max={1} />
+          </div>
+        </Card>
+      ) : null}
+
       {report.exercises.map((ex) => (
         <Card
           key={ex.exerciseId}
           title={ex.name}
-          description={`${ex.sessions} session${ex.sessions === 1 ? '' : 's'}, ${ex.reps} reps`}
+          description={`${ex.sessions} session${ex.sessions === 1 ? '' : 's'}, ${ex.timed ? `${ex.holdsCompleted} of ${ex.holdAttempts} holds completed` : `${ex.reps} reps`}`}
           actions={ex.readyToProgress ? <Badge tone="green" icon="check">Ready to progress</Badge> : undefined}
         >
           <div className="grid gap-3 lg:grid-cols-3">
-            {METRICS.map((m) => (
+            {metricsFor(ex).map((m) => (
               <TrendChart key={m.key} title={m.title} weeks={ex.weeks} pick={m.pick} format={m.format} min={m.min} max={m.max} />
             ))}
           </div>
           {ex.change ? (
             <ul className="mt-3 flex flex-wrap gap-2" aria-label={`${ex.name} change since first week`}>
-              {METRICS.map((m) => (
+              {metricsFor(ex).map((m) => (
                 <li key={m.key}>
                   <Badge tone={changeTone(m, ex.change![m.key])}>{m.title.split(' (')[0]}: {describeChange(m, ex.change![m.key])}</Badge>
                 </li>

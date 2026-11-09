@@ -20,6 +20,9 @@ class Store:
             CREATE TABLE IF NOT EXISTS tags(
                 tag_id INTEGER PRIMARY KEY, patient_id TEXT NOT NULL, display_name TEXT, updated REAL);
             CREATE TABLE IF NOT EXISTS kv(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS heart_samples(
+                patient_id TEXT NOT NULL, t REAL NOT NULL, bpm REAL NOT NULL,
+                PRIMARY KEY(patient_id, t));
             CREATE TABLE IF NOT EXISTS assignments(
                 patient_id TEXT PRIMARY KEY, exercise TEXT, updated REAL);
         """)
@@ -89,6 +92,25 @@ class Store:
         with self._lock:
             rows = self._db.execute("SELECT tag_id, patient_id, display_name FROM tags").fetchall()
         return {t: {"patient_id": p, "display_name": n} for t, p, n in rows}
+
+    def add_heart_samples(self, patient_id, samples):
+        with self._lock:
+            self._db.executemany("INSERT OR REPLACE INTO heart_samples VALUES(?,?,?)",
+                                 [(patient_id, s["t"], s["bpm"]) for s in samples])
+            self._db.commit()
+
+    def heart_samples(self, patient_id, since, until=None):
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT t, bpm FROM heart_samples WHERE patient_id=? AND t>=? AND t<=? ORDER BY t",
+                (patient_id, since, until if until is not None else 4e9)).fetchall()
+        return [{"t": t, "bpm": b} for t, b in rows]
+
+    def latest_heart(self, patient_id):
+        with self._lock:
+            row = self._db.execute("SELECT t, bpm FROM heart_samples WHERE patient_id=? ORDER BY t DESC LIMIT 1",
+                                   (patient_id,)).fetchone()
+        return {"t": row[0], "bpm": row[1]} if row else None
 
     def kv_set(self, key, value):
         with self._lock:

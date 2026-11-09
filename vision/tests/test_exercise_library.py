@@ -25,6 +25,8 @@ def test_every_entry_is_well_formed():
             assert e["mode"] == "manual" and "angle_joint" not in e, eid
         if "rest_direction" in e:
             assert e["rest_direction"] in ("high", "low"), eid
+        if e["tracking"] == "timed":
+            assert e.get("rest_direction") in ("high", "low"), f"{eid}: a hold needs a rest direction"
 
 
 def test_every_category_from_the_clinic_list_is_covered():

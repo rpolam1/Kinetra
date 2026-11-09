@@ -2,6 +2,7 @@ import time
 import uuid
 
 from server.fusion import compute_sets
+from server.heart import HeartError, normalize_zone
 
 TRACKING = ("scored", "count_only", "timed", "manual")
 MAX_PARTICIPANTS = 60
@@ -61,7 +62,11 @@ def normalize_participants(raw):
             items.append({"exercise_id": item["exercise_id"], "name": item.get("name") or item["exercise_id"],
                           "tracking": tracking, "sets": sets, "reps": reps, "seconds": seconds,
                           "load": item.get("load", ""), "modification": item.get("modification", "")})
-        out.append({"patient_id": pid.strip(), "board_name": name.strip(), "plan": items})
+        try:
+            zone = normalize_zone(p.get("heart_zone"))
+        except HeartError as e:
+            raise SessionError("invalid", f"{pid}: {e}")
+        out.append({"patient_id": pid.strip(), "board_name": name.strip(), "plan": items, "heart_zone": zone})
     return out
 
 

@@ -97,6 +97,16 @@ class HubLink:
         }
         self._enqueue(ev)
 
+    def send_hold(self, hold, patient_id, track_id, exercise, id_source=None):
+        self._enqueue({
+            "type": "hold", "event_id": uuid.uuid4().hex, "patient_id": patient_id,
+            "track_key": self.track_key(track_id), "id_source": id_source, "exercise": exercise,
+            "t_start": self.to_hub_time(hold["t_start"]), "t_end": self.to_hub_time(hold["t_end"]),
+            "seconds": round(float(hold["seconds"]), 1),
+            "target_seconds": hold.get("target_seconds"),
+            "completed": bool(hold.get("completed")),
+        })
+
     def send_bind(self, track_id, patient_id, source="tag"):
         self._enqueue({"type": "bind", "event_id": uuid.uuid4().hex, "patient_id": patient_id,
                        "track_key": self.track_key(track_id), "source": source, "t": self.now()})

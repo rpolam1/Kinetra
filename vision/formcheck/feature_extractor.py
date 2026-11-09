@@ -11,17 +11,14 @@ PRIMARY_PREFIX = {"knee": "knee", "hip_hinge": "hinge", "elbow": "elbow", "shoul
                   "thigh_lean": "thigh"}
 _PREFIX_TO_JOINT = {v: k for k, v in PRIMARY_PREFIX.items()}
 
-'''
-extra per-frame form signals, override with form_signals in the json
-<prefix>_l / _r : joint angle, left / right side
-torso_lean : shoulder->hip deviation from vertical (deg)
-hip_y : hip height (fraction of frame); scorer divides its range by
-                     the standing torso_len (fraction of frame) recorded alongside
-knee_dev_l / _r : knee offset from the hip-ankle line, in leg-lengths
-                     (side view: knee travel; front view: valgus/varus)
-sym_gap : |left - right| of the primary joint angle (deg)
-'''
-
+# extra per-frame form signals, override with form_signals in the json
+#   <prefix>_l / _r : joint angle, left / right side
+#   torso_lean      : shoulder->hip deviation from vertical (deg)
+#   hip_y           : hip height (fraction of frame); scorer divides its range by
+#                     the standing torso_len (fraction of frame) recorded alongside
+#   knee_dev_l / _r : knee offset from the hip-ankle line, in leg-lengths
+#                     (side view: knee travel; front view: valgus/varus)
+#   sym_gap         : |left - right| of the primary joint angle (deg)
 DEFAULT_SIGNAL_SETS = {
     "knee": ["knee_l", "knee_r", "hinge_l", "hinge_r", "torso_lean", "hip_y",
              "knee_dev_l", "knee_dev_r", "sym_gap"],
