@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { getExercise, needsCalibration } from '../../domain';
 import type { Patient, Prescription } from '../../domain';
-import { useAsync } from '../../app/hooks/useAsync';
-import { useDebouncedValue } from '../../app/hooks/useDebouncedValue';
+import { useSearchResults } from '../../app/hooks/useSearchResults';
 import { useData } from '../../app/providers/DataProvider';
 import type { SessionParticipantInput } from '../../services/hub/types';
 import { Button } from '../../ui/Button';
@@ -20,13 +19,12 @@ interface Entry {
 export function SessionSetup({ onStart, starting }: { onStart: (participants: SessionParticipantInput[], autoAdvance: boolean) => void; starting: boolean }) {
   const { patients, prescriptions, calibrations } = useData();
   const [text, setText] = useState('');
-  const query = useDebouncedValue(text.trim(), 250);
   const [roster, setRoster] = useState<Map<string, Entry>>(new Map());
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [adding, setAdding] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
 
-  const found = useAsync(() => (query ? patients.search(query, 8) : patients.recent(8)), [patients, query]);
+  const found = useSearchResults(patients, text, 8);
 
   async function add(patient: Patient) {
     setAdding(patient.id);
@@ -56,9 +54,9 @@ export function SessionSetup({ onStart, starting }: { onStart: (participants: Se
     <div className="grid gap-6 lg:grid-cols-2">
       <Card title="Add people" description="Search by name, code (P-0042) or tag (#12).">
         <TextField label="Search patients" name="search" value={text} onChange={setText} placeholder="Start typing a name…" />
-        {found.loading && found.data === null ? <Spinner /> : null}
-        <ul className="mt-3 divide-y divide-slate-100" aria-label="Search results">
-          {(found.data ?? []).map((p) => (
+        {!found.ready ? <Spinner /> : null}
+        <ul className={`mt-3 min-h-[22rem] divide-y divide-slate-100 transition-opacity duration-200 ${found.pending ? 'opacity-70' : 'opacity-100'}`} aria-label="Search results" aria-busy={found.pending}>
+          {found.rows.map((p) => (
             <li key={p.id} className="flex items-center justify-between gap-2 py-2">
               <span className="flex items-center gap-3"><Avatar name={`${p.firstName} ${p.lastName}`} size={32} /><span>{p.firstName} {p.lastName} <span className="text-sm text-slate-500">{p.code}</span></span></span>
               <Button size="sm" variant="secondary" icon={roster.has(p.id) ? 'check' : 'plus'} disabled={roster.has(p.id) || adding === p.id} onClick={() => void add(p)} aria-label={`Add ${p.firstName} ${p.lastName}`}>

@@ -5,10 +5,10 @@ import { Avatar, Badge } from '../../ui/display';
 import { Icon } from '../../ui/Icon';
 import { STREAM_LABELS } from './labels';
 
-export function PatientRow({ patient }: { patient: Patient }) {
+export function PatientRow({ patient, rise = true }: { patient: Patient; rise?: boolean }) {
   const age = computeAge(patient.dateOfBirth);
   return (
-    <li data-rise>
+    <li {...(rise ? { 'data-rise': '' } : {})}>
       <Link
         to={`/patients/${patient.id}`}
         data-hover="row"
