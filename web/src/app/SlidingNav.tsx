@@ -12,6 +12,7 @@ export interface NavItem {
   badge?: number;
 }
 
+/** Navigation links with a highlight bar that slides to the active link. The bar jumps into place the first time and when motion is reduced. */
 export function SlidingNav({ items, activePath }: { items: readonly NavItem[]; activePath: string }) {
   const nav = useRef<HTMLElement>(null);
   const indicator = useRef<HTMLSpanElement>(null);
@@ -39,6 +40,7 @@ export function SlidingNav({ items, activePath }: { items: readonly NavItem[]; a
     };
 
     place();
+    // The bar is placed again when the layout changes size
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => place());
     observer?.observe(root);
     return () => observer?.disconnect();
