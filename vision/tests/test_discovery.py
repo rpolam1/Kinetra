@@ -1,3 +1,4 @@
+"""Tests for how clients find the hub: broadcast, subnet scan, cached address, and one laptop hosting the hub for the others."""
 import os
 import sys
 import tempfile
@@ -11,19 +12,23 @@ from server.hub import EmbeddedHub, create_app, host_if_alone, HubCore
 from formcheck import discovery as d
 from formcheck.hub_client import HubLink
 
+# Each test gets its own port so a hub left over from an earlier test cannot answer
 _port = [56000]
 
 
 def next_port():
+    """The next unused test port."""
     _port[0] += 1
     return _port[0]
 
 
 def tmp_cache():
+    """A cache file path in a fresh temporary folder."""
     return os.path.join(tempfile.mkdtemp(), ".hub_url")
 
 
 def start_responder(hub, dport):
+    """Start a discovery responder for a hub and fail if it cannot bind."""
     r = d.DiscoveryResponder(http_port=hub.port, port=dport)
     r.start()
     time.sleep(0.3)
