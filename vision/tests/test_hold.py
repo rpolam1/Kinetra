@@ -1,13 +1,16 @@
+"""Tests for how the segmenter measures timed holds such as a wall sit."""
 from formcheck.rep_segmenter import RepSegmenter
 
 
 def feed(seg, angle_at, seconds, fps=10):
+    """Feed simulated samples for a number of seconds, with the angle given by angle_at."""
     for i in range(int(seconds * fps)):
         t = i / fps
         seg.add_sample({"timestamp": t, "primary_angle": angle_at(t), "aux_signal": None, "signals": {}})
 
 
 def make():
+    """A segmenter set up for holds."""
     return RepSegmenter(mode="hold_duration", rest_direction="high")
 
 
