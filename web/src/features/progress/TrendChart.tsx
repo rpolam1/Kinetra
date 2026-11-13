@@ -1,5 +1,6 @@
 import { formatWeek } from '../../domain';
 
+/** The props for a weekly line chart. The pick function says which value to plot for each week. */
 export interface TrendChartProps<T extends { weekStart: number }> {
   title: string;
   weeks: readonly T[];
@@ -10,10 +11,12 @@ export interface TrendChartProps<T extends { weekStart: number }> {
   color?: string;
 }
 
+// The chart is drawn in a fixed box and scaled by the browser, so these are SVG units and not pixels
 const WIDTH = 320;
 const HEIGHT = 150;
 const PAD = { left: 44, right: 12, top: 12, bottom: 28 };
 
+/** A small line chart with one point per week. It has no chart library on purpose, to keep the page light. */
 export function TrendChart<T extends { weekStart: number }>({ title, weeks, pick, format, min, max, color = '#0f766e' }: TrendChartProps<T>) {
   const values = weeks.map(pick);
   const present = values.filter((v): v is number => v !== null);
@@ -27,11 +30,13 @@ export function TrendChart<T extends { weekStart: number }>({ title, weeks, pick
   }
   const lo0 = Math.min(...present);
   const hi0 = Math.max(...present);
+  // When every value is the same the span would be zero, so a small span is invented to keep the line off the edge
   const span = hi0 - lo0 || Math.max(Math.abs(hi0) * 0.2, 1);
   const lo = min ?? lo0 - span * 0.15;
   const hi = max ?? hi0 + span * 0.15;
   const innerW = WIDTH - PAD.left - PAD.right;
   const innerH = HEIGHT - PAD.top - PAD.bottom;
+  // A single week is drawn in the middle instead of at the left edge
   const x = (i: number) => PAD.left + (weeks.length === 1 ? innerW / 2 : (i / (weeks.length - 1)) * innerW);
   const y = (v: number) => PAD.top + innerH - ((v - lo) / (hi - lo || 1)) * innerH;
   const points = values.flatMap((v, i) => (v === null ? [] : [{ x: x(i), y: y(v), v, i }]));
@@ -39,6 +44,7 @@ export function TrendChart<T extends { weekStart: number }>({ title, weeks, pick
   const ticks = [lo, (lo + hi) / 2, hi];
   const first = points[0]!;
   const last = points[points.length - 1]!;
+  // The summary is the text version of the chart for screen readers
   const summary = `${title}: ${format(first.v)} in the week of ${formatWeek(weeks[first.i]!.weekStart)}, ${format(last.v)} in the week of ${formatWeek(weeks[last.i]!.weekStart)}`;
 
   return (
