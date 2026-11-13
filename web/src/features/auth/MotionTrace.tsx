@@ -9,6 +9,7 @@ const TARGET_BOTTOM = 82;
 const NOW_AT = 0.86; // where 'now' sits across the trace
 const START = PERIOD * 3.55; // start mid-session so the first frame already has history
 
+/** How deep squat number k goes. Every fifth squat is shallow, so the demo shows a rep being flagged. */
 function bottomOf(k: number): number {
   if (k % 5 === 3) return 121;
   return 90 + ((k * 7) % 5) * 2;
@@ -18,6 +19,7 @@ function isShallow(k: number): boolean {
   return bottomOf(k) > TARGET_TOP;
 }
 
+/** The knee angle at time t. Each rep is a smooth dip with a short rest at the start and end. */
 function angleAt(t: number): number {
   const k = Math.floor(t / PERIOD);
   const phase = (t - k * PERIOD) / PERIOD;
@@ -25,6 +27,7 @@ function angleAt(t: number): number {
   return STANDING - (STANDING - bottomOf(k)) * s;
 }
 
+/** The time at the bottom of rep k. */
 function troughTime(k: number): number {
   return (k + 0.5) * PERIOD;
 }
@@ -38,6 +41,7 @@ interface Palette {
   muted: string;
 }
 
+/** Read the colours from the page's CSS variables, with fallbacks, so the canvas matches the theme. */
 function readPalette(el: HTMLElement): Palette {
   const css = getComputedStyle(el);
   const get = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
@@ -51,6 +55,7 @@ function readPalette(el: HTMLElement): Palette {
   };
 }
 
+/** A canvas animation that imitates the live knee angle graph, with a moving line, a target depth band and a numbered marker for each squat. It is decoration for the sign in page, so the data is made up. */
 export function MotionTrace() {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -177,6 +182,7 @@ export function MotionTrace() {
     });
     observer.observe(host);
 
+    // With reduced motion a single still frame is drawn instead of an animation
     if (!motionAllowed()) {
       draw(START);
       return () => observer.disconnect();
