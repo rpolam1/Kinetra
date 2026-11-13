@@ -16,6 +16,7 @@ import { guard } from './errors';
 
 const INITIAL_REASON = 'Initial prescription';
 
+/** Document id for a version. The padding keeps the ids in order when they are sorted as text. */
 function versionId(version: number): string {
   return `v${String(version).padStart(4, '0')}`;
 }
@@ -24,6 +25,7 @@ function toPrescription(id: string, data: DocumentData): Prescription {
   return { ...(data as Omit<Prescription, 'id'>), id };
 }
 
+/** Prescription versions stored under each patient. Older versions stay as history. */
 export class FirestorePrescriptionRepository implements PrescriptionRepository {
   constructor(private readonly db: Firestore) {}
 
@@ -47,6 +49,7 @@ export class FirestorePrescriptionRepository implements PrescriptionRepository {
     });
   }
 
+  /** Save a new version and mark the previous one as superseded. A reason is required for every change after the first. */
   save(
     patientId: string,
     content: PrescriptionContent,
