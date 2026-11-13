@@ -1,5 +1,6 @@
 import SwiftUI
 
+/** Shows the person's live heart rate and the controls for the watch workout. */
 struct MonitorView: View {
     @Environment(AppModel.self) private var model
 
@@ -40,6 +41,7 @@ struct MonitorView: View {
         }
     }
 
+    /** The person's name and tag. The tag picture helps a volunteer find the right one to hold up. */
     private func header(_ person: SelectedPerson) -> some View {
         HStack(spacing: 16) {
             TagThumbnail(url: model.tagImageURL(person.tagId, size: 320), size: 84)
@@ -56,6 +58,7 @@ struct MonitorView: View {
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
+    /** The watch status with the buttons to start and end the workout. */
     private var watchSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Label(watchStatusText, systemImage: watchStatusSymbol)
@@ -81,6 +84,7 @@ struct MonitorView: View {
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
+    /** What the watch is doing, in words. The order matters, because each problem hides the ones after it. */
     private var watchStatusText: String {
         if !model.link.isPaired { return "No Apple Watch is paired with this phone" }
         if !model.link.isWatchAppInstalled { return "Install the Kinetra app on the watch" }
