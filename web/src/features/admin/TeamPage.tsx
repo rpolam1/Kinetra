@@ -16,6 +16,7 @@ function roleOptions(): { value: Role; label: string }[] {
   return ROLES.map((r) => ({ value: r, label: ROLE_INFO[r].label }));
 }
 
+/** A drop down for changing a person's role. */
 function RoleSelect({ label, value, disabled, onChange }: { label: string; value: Role; disabled?: boolean; onChange: (role: Role) => void }) {
   return (
     <select
@@ -32,6 +33,7 @@ function RoleSelect({ label, value, disabled, onChange }: { label: string; value
   );
 }
 
+/** Administrators approve or decline new accounts and role requests, change roles and switch accounts off. */
 export function TeamPage() {
   const { can, user } = useAuth();
   const { accounts: repo } = useData();
@@ -45,6 +47,7 @@ export function TeamPage() {
   }
   const me = user.uid;
 
+  /** Run an action for one account with a busy flag, and report the result in a message. */
   async function act(uid: string, done: string, work: () => Promise<void>) {
     setBusy(uid);
     try {
