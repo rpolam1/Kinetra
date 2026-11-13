@@ -1,3 +1,4 @@
+"""Tests for the calibration runner, which watches one person and captures reps for a calibration job."""
 import json, os, random, sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -12,6 +13,7 @@ JOB = {"id": "job1", "patient_id": "P-0001", "exercise": "goblet_squat", "target
 
 
 class FakeSender:
+    """Collects what the runner would send to the hub."""
     def __init__(self):
         self.frames, self.reps = [], []
 
@@ -23,10 +25,12 @@ class FakeSender:
 
 
 def person(track=1, pid=None, lm=None, source="unknown"):
+    """One tracked person as the runner expects to receive them."""
     return {"track_id": track, "patient_id": pid, "id_source": source, "landmarks": lm}
 
 
 def run(frames, people_for, job=JOB):
+    """Feed frames to a runner. people_for builds the list of people seen in each frame."""
     sender = FakeSender()
     runner = CalibrationRunner(job, CONFIGS[job["exercise"]], sender)
     handled = []
@@ -36,6 +40,7 @@ def run(frames, people_for, job=JOB):
 
 
 def squats(n=5, seed=3):
+    """Frames of simulated good squats."""
     rng = random.Random(seed)
     return sim.frames([sim.good_spec(rng) for _ in range(n)], seed=seed)
 
