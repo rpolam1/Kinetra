@@ -1,3 +1,4 @@
+"""Scores a rep against a patient's calibration. Calibration reps give a mean and a spread for each metric, and a new rep is scored by how far each metric sits from its mean in units of the allowed tolerance."""
 import math
 from collections import defaultdict
 
@@ -9,6 +10,7 @@ N_CURVE_POINTS = 50
 MIN_SIGNAL_COVERAGE = 0.6  # signal must show up in this share of a rep's frames
 ACTIVE_FRACTION = 0.25  # moving = more than 25% of ROM from rest
 ACTIVE_PAD_FRAMES = 4  # frames of lead-in/out kept around the active window
+# Tolerance is this many standard deviations of the calibration reps, clamped between the floor and ceiling in the specs
 STD_MULTIPLIER = 2.5
 CAP_START = 85.0  # score cap when an important metric is just out of band
 CAP_SLOPE = 40.0  # drop per tolerance-width past the band
@@ -72,6 +74,7 @@ def _stats_for(signal):
 
 
 def _active_window(angles):
+    """Trim a rep to the part where the joint is actually moving, plus a small pad. Falls back to the whole rep when the motion is too small to find."""
     a = np.asarray(angles, dtype=float)
     n = len(a)
     rom = a.max() - a.min()
@@ -101,6 +104,7 @@ def _rmse(a, b):
 
 
 def _shape_distance(a, b, band_frac=SHAPE_WARP_BAND):
+    """Banded dynamic time warping distance between two curves, so a rep that is a little faster or slower than the template is not penalised for timing alone."""
     a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
     n, m = len(a), len(b)
     w = max(1, int(band_frac * max(n, m)))
@@ -119,6 +123,7 @@ def _shape_distance(a, b, band_frac=SHAPE_WARP_BAND):
 
 
 def extract_rep_features(samples, shape_signals=None):
+    """Reduce one rep to scalar metrics (duration, speed, and the min, max and range of each signal) and resampled curves for the shape check. Returns None when the rep is too short or has no duration."""
     if len(samples) < 5:
         return None
     shape_signals = set(shape_signals or ("torso_lean", "hip_y"))
@@ -154,6 +159,7 @@ def extract_rep_features(samples, shape_signals=None):
         valid = ~np.isnan(arr)
         if valid.sum() < 3 or valid.sum() < MIN_SIGNAL_COVERAGE * len(arr):
             continue
+        # Fill short gaps by interpolating so one lost frame does not drop the whole metric
         if not valid.all():
             arr = np.interp(np.arange(len(arr)), np.where(valid)[0], arr[valid])
         series[name] = arr
@@ -185,6 +191,7 @@ def extract_rep_features(samples, shape_signals=None):
 
 
 def _spec(metric):
+    """Look up the (floor, ceiling, kind, side) tolerance spec for a metric name."""
     if "." not in metric:
         return TIMING_SPECS[metric]
     sig, stat = metric.rsplit(".", 1)
@@ -197,6 +204,7 @@ def _spec(metric):
 
 
 def _weight(metric, primary_prefix, symmetry_check):
+    """Importance of a metric in the score. A weight of zero drops the metric from the profile."""
     if "." not in metric:
         # tempo matters, bouncing is a classic bad-form sign
         return {"duration": 2.0, "peak_speed": 2.0}.get(metric, 1.0)
@@ -218,6 +226,7 @@ def _weight(metric, primary_prefix, symmetry_check):
 
 
 def _tolerance(std, mu, spec, scale):
+    """Allowed deviation for a metric: the calibration spread clamped between the spec floor and ceiling. The second value is True when the raw spread went past the ceiling, which means the calibration reps were inconsistent."""
     floor, ceil, kind, _ = spec
     m = max(abs(mu), 1e-6) if kind == "rel" else 1.0
     raw = STD_MULTIPLIER * std
@@ -226,6 +235,7 @@ def _tolerance(std, mu, spec, scale):
 
 
 def build_profile(template, exercise_config=None):
+    """Build the scoring profile from a calibration template: a mean, spread and tolerance for each metric, plus the mean shape curves. Returns None when fewer than two reps are usable."""
     cfg = exercise_config or {}
     if not template:
         return None
@@ -280,6 +290,7 @@ def build_profile(template, exercise_config=None):
 
 
 def _describe(metric, x, mu):
+    """Plain-language feedback for a metric that was out of tolerance."""
     if metric == "duration":
         return f"Rep too fast: {x:.1f}s vs {mu:.1f}s in calibration (control the movement)"
     if metric == "descent_frac":
@@ -297,10 +308,12 @@ def _describe(metric, x, mu):
 
 
 def _metric_score(dev):
+    """Full marks inside the tolerance, then a straight fall to zero at three times the tolerance."""
     return 100.0 if dev <= 1.0 else max(0.0, 100.0 * (1.0 - (dev - 1.0) / 2.0))
 
 
 def score_rep(rep_samples, profile):
+    """Score one rep from 0 to 100 against the profile. Returns None without a profile. The score itself is None when too few of the checks could be evaluated."""
     if profile is None:
         return None
     feat = extract_rep_features(rep_samples, profile.get("shape_signals"))
@@ -352,6 +365,7 @@ def score_rep(rep_samples, profile):
 
 
 def calibration_warnings(profile):
+    """Warnings about a calibration that is missing, too short or inconsistent."""
     if profile is None:
         return ["Calibration unusable: fewer than 2 complete reps were captured."]
     warns = []
