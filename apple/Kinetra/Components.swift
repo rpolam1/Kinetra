@@ -1,5 +1,6 @@
 import SwiftUI
 
+/** The main call to action. It fades when disabled. */
 struct PrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
@@ -13,6 +14,7 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
+/** A quieter button for secondary actions. */
 struct SecondaryButtonStyle: ButtonStyle {
     var tint: Color = Brand.teal
 
@@ -26,6 +28,7 @@ struct SecondaryButtonStyle: ButtonStyle {
     }
 }
 
+/** A red message box for errors. */
 struct ErrorBanner: View {
     let message: String
 
@@ -39,6 +42,7 @@ struct ErrorBanner: View {
     }
 }
 
+/** A picture of a person's tag. Interpolation is off so the squares stay sharp. */
 struct TagThumbnail: View {
     let url: URL?
     var size: CGFloat = 56
@@ -62,6 +66,7 @@ struct TagThumbnail: View {
     }
 }
 
+/** A small label with an icon, such as On camera. */
 struct Badge: View {
     let text: String
     let symbol: String
@@ -77,6 +82,7 @@ struct Badge: View {
     }
 }
 
+/** A bar showing where the heart rate sits between resting and maximum, with the target zone shaded. */
 struct ZoneGauge: View {
     let reading: HeartReading
 
@@ -107,6 +113,7 @@ struct ZoneGauge: View {
     }
 }
 
+/** The large heart rate display. It reads as one item to VoiceOver, so it is spoken once and not piece by piece. */
 struct HeartCard: View {
     let reading: HeartReading
 
