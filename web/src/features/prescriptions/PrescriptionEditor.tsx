@@ -10,6 +10,7 @@ import { ExerciseRow } from './ExerciseRow';
 import { SlotChecklist } from './SlotChecklist';
 import { VersionHistory } from './VersionHistory';
 
+/** The props for the editor. The save callback takes the reason so it can be stored with the new version. */
 interface PrescriptionEditorProps {
   patient: Patient;
   current: Prescription | null;
@@ -18,10 +19,12 @@ interface PrescriptionEditorProps {
   onSave: (content: PrescriptionContent, reason: string) => Promise<void>;
 }
 
+/** The editable part of a prescription, or an empty one for a patient who has none yet. */
 function baselineOf(current: Prescription | null): PrescriptionContent {
   return current ? structuredClone({ exercises: current.exercises, cardio: current.cardio }) : emptyContent();
 }
 
+/** Edits a draft of the prescription and saves it as a new version. The draft only becomes a version when the person saves. */
 export function PrescriptionEditor({ patient, current, history, canEdit, onSave }: PrescriptionEditorProps) {
   const baseline = useMemo(() => baselineOf(current), [current]);
   const [draft, setDraft] = useState<PrescriptionContent>(() => structuredClone(baseline));
@@ -30,6 +33,7 @@ export function PrescriptionEditor({ patient, current, history, canEdit, onSave 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Dirty is judged by content, so undoing a change turns the save button off again
   const dirty = !contentEquals(draft, baseline);
   const slots = useMemo(() => checkSlots(draft.exercises), [draft.exercises]);
   const existingIds = useMemo(() => new Set(draft.exercises.map((e) => e.exerciseId)), [draft.exercises]);
@@ -39,6 +43,7 @@ export function PrescriptionEditor({ patient, current, history, canEdit, onSave 
   const patchExercise = (index: number, patch: Partial<PrescribedExercise>) =>
     setExercises(draft.exercises.map((e, i) => (i === index ? { ...e, ...patch } : e)));
 
+  // Restoring only fills the draft, so the old version is saved as a new one and history is never rewritten
   const restore = (version: Prescription) => {
     setDraft(structuredClone({ exercises: version.exercises, cardio: version.cardio }));
     setReason(`Restored version ${version.version}`);
@@ -46,6 +51,7 @@ export function PrescriptionEditor({ patient, current, history, canEdit, onSave 
 
   const save = async () => {
     setError(null);
+    // The first version needs no reason, but every later change does
     if (current && !reason.trim()) {
       setError('Enter a reason for this change (it is kept in the version history).');
       return;
@@ -55,6 +61,7 @@ export function PrescriptionEditor({ patient, current, history, canEdit, onSave 
       await onSave(draft, reason);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save the prescription');
+      // Saving stays true on success because the parent replaces this editor with a new key
       setSaving(false);
     }
   };
