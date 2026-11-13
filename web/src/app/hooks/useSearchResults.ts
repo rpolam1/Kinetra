@@ -7,6 +7,7 @@ import { useDebouncedValue } from './useDebouncedValue';
 
 const DEFAULT_DEBOUNCE_MS = 180;
 
+/** What the search page needs. Pending is true while a newer search is loading, and ready is true once something has been shown. */
 export interface SearchResults {
   rows: readonly Patient[];
   searching: boolean;
@@ -15,6 +16,7 @@ export interface SearchResults {
   error: Error | null;
 }
 
+/** Search patients as the person types. The query is debounced, and while the next result loads the previous rows are narrowed to match, so the list does not jump. With no query the recent patients are shown. */
 export function useSearchResults(patients: PatientRepository, rawQuery: string, limit: number, debounceMs: number = DEFAULT_DEBOUNCE_MS): SearchResults {
   const typed = rawQuery.trim();
   const debounced = useDebouncedValue(typed, debounceMs);
