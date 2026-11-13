@@ -4,6 +4,7 @@ import { useData } from '../providers/DataProvider';
 import { useHub } from '../providers/HubProvider';
 import { useToast } from '../providers/ToastProvider';
 
+/** Returns a function that sends the tag registry to the hub. With quiet set no message is shown. */
 export function useTagSync() {
   const { patients } = useData();
   const { api } = useHub();
@@ -27,9 +28,11 @@ export function useTagSync() {
   );
 }
 
+/** Send the tags to the hub whenever it comes online. */
 export function useAutoTagSync(): void {
   const sync = useTagSync();
   const { status } = useHub();
+  // A ref keeps the effect from running again when the sync function is recreated
   const syncRef = useRef(sync);
   syncRef.current = sync;
   useEffect(() => {
