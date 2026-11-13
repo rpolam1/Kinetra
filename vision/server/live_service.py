@@ -1,3 +1,4 @@
+"""Live features of the hub. Joins presence, reps, heart rate, sessions and calibration into the status the web app shows, and publishes changes."""
 import json
 import threading
 import time
@@ -13,6 +14,7 @@ TICK_SECONDS = 1.0  # recheck time-based changes this often
 
 
 class LiveService:
+    """Builds the live status for the board and drives sessions and calibration jobs. Shares the hub's lock."""
     def __init__(self, core, exercise_configs=None, clock=time.time):
         self.core = core
         self.clock = clock
@@ -27,6 +29,7 @@ class LiveService:
         self._ticker = None
 
     def presence_update(self, camera_id, people):
+        """Record who a camera can see, after cleaning up what it sent."""
         if not isinstance(people, list) or len(people) > 100:
             raise ValueError("people must be a list")
         clean = []
@@ -47,14 +50,17 @@ class LiveService:
         self.publish_live()
 
     def _reps_since(self, pid, started_at):
+        """Combined reps for a patient that started after a time."""
         return [r for r in self.core.fusion.canonical_reps(pid) if r["t_start"] >= started_at]
 
     def _exercise_reps(self, pid, participant):
+        """Reps for the participant's current exercise since they moved to it."""
         item = participant["plan"][participant["index"]]
         return [r for r in self.core.fusion.canonical_reps(pid, item["exercise_id"])
                 if r["t_start"] >= participant["exercise_started_at"]]
 
     def _participant_view(self, sess, p, seen, now):
+        """Everything the board shows for one participant. A very high heart rate overrides the form light."""
         pid = p["patient_id"]
         since = self._reps_since(pid, sess["started_at"])
         scores = [r["score"] for r in since][-3:]
@@ -83,13 +89,16 @@ class LiveService:
                 "last_rep_at": last_rep_at, "finished": p["finished"], "done_count": len(p["done"])}
 
     def heart_view(self, patient_id, zone, now=None):
+        """Heart rate status for a patient. The current time can be passed in so one snapshot uses a single clock."""
         return evaluate(self.core.heart.latest(patient_id), self.clock() if now is None else now, zone)
 
     def heart_status(self, patient_id):
+        """Heart rate status for a patient, using the zone from the running session if there is one."""
         p = self.session.participant(patient_id) if self.session.active else None
         return self.heart_view(patient_id, p.get("heart_zone") if p else None)
 
     def live_snapshot(self):
+        """The full live status for the board."""
         now = self.clock()
         with self.core.lock:
             sess = self.session.state()
@@ -112,6 +121,7 @@ class LiveService:
             }
 
     def publish_live(self, force=False):
+        """Send a snapshot to the bus. Without force, nothing is sent unless something other than the time has changed."""
         snapshot = self.live_snapshot()
         signature = json.dumps({k: v for k, v in snapshot.items() if k != "server_time"},
                                sort_keys=True, separators=(",", ":"))
@@ -123,6 +133,7 @@ class LiveService:
         return True
 
     def after_activity(self):
+        """Called after new events. Moves people on to their next exercise when auto advance is on and their target is met, then publishes."""
         with self.core.lock:
             sess = self.session.state()
             if self.session.active and sess["auto_advance"]:
@@ -139,6 +150,7 @@ class LiveService:
         self.publish_live()
 
     def start_ticker(self, interval=TICK_SECONDS):
+        """Start the background thread that refreshes time based status such as resting and lost signal."""
         if self._ticker is not None:
             return
 
@@ -153,9 +165,11 @@ class LiveService:
         self._ticker.start()
 
     def close(self):
+        """Stop the ticker thread."""
         self.stop_event.set()
 
     def _assign(self, patient_id):
+        """Point the patient's assignment at the exercise they are on, or clear it."""
         item = self.session.current_item(patient_id)
         if item:
             self.core.store.set_assignment(patient_id, item["exercise_id"])
@@ -163,10 +177,12 @@ class LiveService:
             self.core.store.clear_assignment(patient_id)
 
     def _advance(self, patient_id, to_index=None):
+        """Move a patient on in the session and update their assignment."""
         self.session.advance(patient_id, to_index)
         self._assign(patient_id)
 
     def session_start(self, participants, auto_advance=False):
+        """Start a session and assign each participant their first exercise."""
         with self.core.lock:
             state = self.session.start(participants, auto_advance)
             for pid in state["order"]:
@@ -175,16 +191,19 @@ class LiveService:
         return state
 
     def session_advance(self, patient_id, to_index=None):
+        """Move one participant to the next exercise, or to a chosen one."""
         with self.core.lock:
             self._advance(patient_id, to_index)
         self.publish_live()
 
     def session_set_auto_advance(self, enabled):
+        """Turn automatic advancing on or off."""
         with self.core.lock:
             self.session.set_auto_advance(enabled)
         self.after_activity()
 
     def session_end(self):
+        """End the session and return its summary."""
         with self.core.lock:
             summary = self.session_summary()  # computed before the session closes
             self.session.end()
@@ -192,6 +211,7 @@ class LiveService:
         return summary
 
     def session_summary(self):
+        """Per patient and exercise results for the session, including form, range of motion, holds and heart rate."""
         sess = self.session.state()
         if not sess:
             raise SessionError("conflict", "No session")
@@ -237,21 +257,25 @@ class LiveService:
                 "ended_at": sess["ended_at"] or now, "participants": out}
 
     def _publish_calibration(self, job):
+        """Send the job's state to anyone watching it."""
         self.bus.publish("calibration", self.calibration.summary(job), key=job["id"])
 
     def calibration_create(self, patient_id, exercise, camera_id=None, target_reps=5):
+        """Create a calibration job and tell watchers."""
         with self.core.lock:
             job = self.calibration.create(patient_id, exercise, camera_id, target_reps)
             self._publish_calibration(job)
             return self.calibration.summary(job)
 
     def calibration_claim(self, job_id, camera_id):
+        """Let a camera claim a job and tell watchers."""
         with self.core.lock:
             job = self.calibration.claim(job_id, camera_id)
             self._publish_calibration(job)
             return self.calibration.summary(job)
 
     def calibration_frame(self, job_id, camera_id, frame):
+        """Pass a preview skeleton to watchers. Frames that arrive too quickly are dropped."""
         with self.core.lock:
             job = self.calibration.set_frame(job_id, camera_id, frame)
             now = time.monotonic()
@@ -261,6 +285,7 @@ class LiveService:
         self.bus.publish("skeleton", {**frame, "job_id": job["id"]}, key=job_id)
 
     def calibration_rep_event(self, event):
+        """Handle a calibration rep sent as an event. Returns accepted, duplicate or rejected."""
         with self.core.lock:
             try:
                 _, duplicate = self.calibration.add_rep(event.get("job_id"), event.get("camera_id"), event)
@@ -271,12 +296,14 @@ class LiveService:
             return "duplicate" if duplicate else "accepted"
 
     def calibration_decide(self, job_id, index, decision):
+        """Keep or discard a rep and tell watchers."""
         with self.core.lock:
             job = self.calibration.decide(job_id, index, decision)
             self._publish_calibration(job)
             return self.calibration.summary(job)
 
     def calibration_finish(self, job_id):
+        """Finish a job, save the template and return the kept reps."""
         with self.core.lock:
             job = self.calibration.get(job_id)
             result = self.calibration.finish(job_id)
@@ -286,6 +313,7 @@ class LiveService:
                     "warnings": result["warnings"], "reps": result["reps"]}
 
     def calibration_cancel(self, job_id):
+        """Cancel a job and tell watchers."""
         with self.core.lock:
             job = self.calibration.cancel(job_id)
             self._publish_calibration(job)
