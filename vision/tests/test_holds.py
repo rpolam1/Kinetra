@@ -1,3 +1,4 @@
+"""Tests for holds across the hub and the camera: merging, summaries, rebuilding after a restart and what the camera reports."""
 import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -7,6 +8,7 @@ from test_hub_live import make, person, plan, post_reps, start
 
 
 def hold(cam="A", t0=10.0, t1=22.0, pid="P-0001", seconds=12.0, completed=False, track=None, ex="wall_sit"):
+    """A hold observation as the hold log receives it."""
     return {"camera_id": cam, "track_key": track or f"{cam}-1", "patient_id": pid, "exercise": ex,
             "t_start": t0, "t_end": t1, "seconds": seconds, "target_seconds": 30.0, "completed": completed}
 
@@ -44,6 +46,7 @@ def test_anonymous_hold_is_claimed_by_a_later_bind_and_filters_work():
 
 
 def hold_event(t0, seconds, completed=False, cam="cam1", pid="P-0001"):
+    """A hold event as a camera sends it to the hub."""
     return {"type": "hold", "event_id": f"{cam}-{pid}-{t0}", "patient_id": pid, "track_key": f"{cam}-1",
             "exercise": "wall_sit", "t_start": t0, "t_end": t0 + seconds, "seconds": seconds,
             "target_seconds": 30, "completed": completed}
@@ -91,6 +94,7 @@ def test_junk_hold_events_are_rejected():
 
 
 class FakeLink:
+    """Stands in for the hub link and records what the camera sends."""
     camera_id = "c"
 
     def __init__(self):
@@ -104,10 +108,12 @@ class FakeLink:
 
 
 def pipeline(link):
+    """A camera pipeline set up with a 30 second wall sit."""
     return CameraPipeline({"wall_sit": {"target_duration_sec": 30}}, None, link)
 
 
 def progress(holding, seconds, t):
+    """A judge result that reports hold progress."""
     return {"type": "hold_progress", "holding": holding, "elapsed_seconds": seconds, "t": t}
 
 
@@ -115,6 +121,7 @@ PERSON = {"patient_id": "P-0001", "track_id": 3, "id_source": "tag"}
 
 
 def drive(pipe, sess, steps):
+    """Send a series of judge results to the pipeline for one person."""
     for j in steps:
         pipe._on_judgment(sess, PERSON, j)
 
