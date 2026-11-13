@@ -1,5 +1,6 @@
 import XCTest
 
+/** Tests that the app reads and writes the same JSON as the Python hub. The samples are shaped like the hub's real answers. */
 final class HubContractTests: XCTestCase {
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
@@ -63,6 +64,7 @@ final class HubContractTests: XCTestCase {
     }
 }
 
+/** Tests for turning typed text into a hub address. */
 final class HubAddressTests: XCTestCase {
     func testAddsSchemeAndDefaultPort() {
         XCTAssertEqual(HubAddress.normalize("jetson.local")?.absoluteString, "http://jetson.local:5000")
