@@ -1,3 +1,4 @@
+/** Tests for weekly progress, change between weeks, timed holds and the progress report. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { buildProgressReport, changeBetween, sessionsFromSummary, weekStart, weeklyProgress } from '../src/domain';
@@ -6,6 +7,7 @@ import type { ExerciseResult, PatientSession } from '../src/domain';
 const DAY = 86_400_000;
 const MON = Date.UTC(2026, 0, 5);
 
+/** A scored exercise result with defaults. */
 function result(over: Partial<ExerciseResult> = {}): ExerciseResult {
   return {
     exerciseId: 'goblet_squat',
@@ -26,6 +28,7 @@ function result(over: Partial<ExerciseResult> = {}): ExerciseResult {
   };
 }
 
+/** A saved session on the given day of the week. */
 function session(id: string, day: number, exercises: ExerciseResult[]): PatientSession {
   const startedAt = MON + day * DAY;
   return { id, patientId: 'p1', startedAt, endedAt: startedAt + 30 * 60_000, exercises, savedBy: 'u1' };
@@ -153,6 +156,7 @@ describe('sessionsFromSummary with rom and tempo', () => {
   });
 });
 
+/** A timed hold result with defaults. */
 function holdResult(over: Partial<ExerciseResult> = {}): ExerciseResult {
   return result({
     exerciseId: 'wall_sit', name: 'Wall sit', tracking: 'timed', targetReps: null, reps: 1, good: 0, needsCorrection: 0, flagged: 0,
