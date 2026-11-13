@@ -1,8 +1,10 @@
 import { emptyPatientData, getExercise } from '../../src/domain';
 import type { CardioBlock, PatientData, PrescribedExercise, PrescriptionContent } from '../../src/domain';
 
+/** The curve a person's progress follows over the weeks. */
 export type Shape = 'steady' | 'fast' | 'late' | 'plateau' | 'dip';
 
+/** The story of one demo person. Each pair of from and to values is where a measure starts and where it ends, and miss is the chance of skipping a session. */
 export interface Arc {
   perWeek: number;
   miss: number;
@@ -25,6 +27,7 @@ export interface Arc {
   minutes: number;
 }
 
+/** A made up person with their record, prescription and progress story. */
 export interface DemoPerson {
   slug: string;
   data: PatientData;
@@ -32,6 +35,7 @@ export interface DemoPerson {
   arc: Arc;
 }
 
+/** A prescribed exercise with sensible defaults. It throws for an id that is not in the library, so typos are caught when the seeder starts. */
 function exercise(exerciseId: string, sets: number, reps: number | null, seconds: number | null = null, load = ''): PrescribedExercise {
   const def = getExercise(exerciseId);
   if (!def) throw new Error(`Demo cast uses unknown exercise ${exerciseId}`);
@@ -48,10 +52,12 @@ function exercise(exerciseId: string, sets: number, reps: number | null, seconds
   };
 }
 
+/** A cardio block with a warm up and cool down of five minutes. */
 function cardio(machine: CardioBlock['machine'], mainMin: number, low = 40, high = 60): CardioBlock {
   return { machine, warmupMin: 5, mainMin, cooldownMin: 5, intensityLowPct: low, intensityHighPct: high, notes: '' };
 }
 
+/** Fills in a patient record from a slug such as margaret-chen. The name and board name come from the slug. */
 function person(slug: string, overrides: Partial<PatientData>): PatientData {
   const [first = '', last = ''] = slug.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1));
   return {
@@ -64,8 +70,10 @@ function person(slug: string, overrides: Partial<PatientData>): PatientData {
   };
 }
 
+// Phone numbers use the reserved 555 range so they can never reach a real person
 const phone = (n: number): string => `519-555-01${String(n).padStart(2, '0')}`;
 
+// The made up people for the demo. They cover steady, fast, late, plateau and dip progress, and some are on beta blockers or have no watch.
 export const CAST: readonly DemoPerson[] = [
   {
     slug: 'margaret-chen',
