@@ -1,3 +1,4 @@
+/** Tests for the printed report. They check that typed text is escaped and that the report content is right. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { buildProgressReport } from '../src/domain';
@@ -7,15 +8,18 @@ import { buildReportHtml, cssString, escapeHtml, highlights } from '../src/featu
 const DAY = 86_400_000;
 const MON = Date.UTC(2026, 0, 5);
 
+/** An exercise result with defaults. */
 function result(over: Partial<ExerciseResult> = {}): ExerciseResult {
   return { exerciseId: 'goblet_squat', name: 'Goblet squat', tracking: 'scored', targetSets: 2, targetReps: 10, reps: 20, sets: 2, good: 14, needsCorrection: 4, flagged: 2, avgScore: 78, avgRom: 70, avgRepSeconds: 2, completed: true, ...over };
 }
 
+/** A saved session on the given day of the week. */
 function session(id: string, day: number, exercises: ExerciseResult[]): PatientSession {
   const startedAt = MON + day * DAY;
   return { id, patientId: 'p1', startedAt, endedAt: startedAt + 1_800_000, exercises, savedBy: 'u1' };
 }
 
+// The last name holds markup on purpose, to prove it comes out escaped
 const patient = { firstName: 'Ann', lastName: 'Lee <b>x</b>', code: 'P-0001', dateOfBirth: '1950-01-01', goals: 'Walk "further" & safer' } as Patient;
 
 describe('escapeHtml', () => {
