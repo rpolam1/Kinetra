@@ -1,3 +1,4 @@
+"""Tests for heart rate zones, validation of samples, the vitals routes and how heart rate shows up on the board and in summaries."""
 import os
 import sys
 import tempfile
@@ -12,10 +13,12 @@ ZONE = {"resting": 60, "max": 180, "low": 108, "high": 132}
 
 
 def zone_person(pid="P-0001", name="Ana K.", zone=ZONE, **kw):
+    """A session participant that has a heart rate zone."""
     return {**person(pid, name, **kw), "heart_zone": zone}
 
 
 def post(c, pid, samples, **kw):
+    """Post heart rate samples for a patient."""
     return c.post("/api/vitals", json={"patient_id": pid, "samples": samples, **kw})
 
 
