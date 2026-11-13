@@ -9,10 +9,12 @@ import { Alert, Badge, Card, EmptyState, Spinner } from '../../../ui/display';
 import { CalibrationPanel } from '../../calibration/CalibrationPanel';
 import { TrackingBadge } from '../../prescriptions/TrackingBadge';
 
+/** Formats a timestamp as a short local date. */
 function formatDate(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+/** Shows which prescribed exercises are calibrated and lets staff run a calibration for the ones that are not. */
 export function CalibrationTab({ patient }: { patient: Patient }) {
   const { prescriptions, calibrations } = useData();
   const { can } = useAuth();
@@ -21,12 +23,15 @@ export function CalibrationTab({ patient }: { patient: Patient }) {
   const [active, setActive] = useState<string | null>(null);
 
   if ((rx.loading && rx.data === null) || (records.loading && records.data === null)) return <Spinner />;
+  // Only exercises on the current prescription are listed, since nothing else will be tracked
   const lines = (rx.data?.exercises ?? []).flatMap((e) => {
     const def = getExercise(e.exerciseId);
     return def ? [{ def }] : [];
   });
+  // Records are grouped by exercise because one exercise can be calibrated once per camera
   const byExercise = new Map<string, CalibrationRecord[]>();
   for (const r of records.data ?? []) byExercise.set(r.exerciseId, [...(byExercise.get(r.exerciseId) ?? []), r]);
+  // Calibration needs the camera, so it also depends on the patient having consented to tracking
   const canRun = can('session:run') && patient.consent.cameraTracking;
 
   return (
