@@ -1,3 +1,4 @@
+"""Checks that the exercise library file is complete and that every trackable exercise can be used."""
 import json, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from formcheck.paths import EXERCISES_PATH
