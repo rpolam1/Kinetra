@@ -1,5 +1,6 @@
 import type { Role } from './types';
 
+/** The things a person can be allowed to do. */
 export type Action =
   | 'patient:view'
   | 'patient:create'
@@ -37,6 +38,7 @@ const GRANTS: Readonly<Record<Role, readonly Action[]>> = {
   volunteer: ['patient:view', 'session:run'],
 };
 
+/** Whether the role may do the action. A person without a role can do nothing. */
 export function can(role: Role | null, action: Action): boolean {
   return role !== null && GRANTS[role].includes(action);
 }
