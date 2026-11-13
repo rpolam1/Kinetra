@@ -4,7 +4,10 @@ name: build camera app
 on:
   workflow_dispatch:
   push:
-    tags: ["v*"]
+    branches:
+      - "main"
+    tags:
+      - "v*"
 
 # One build per operating system, because PyInstaller cannot build for another platform
 jobs:
