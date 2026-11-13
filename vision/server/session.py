@@ -1,3 +1,4 @@
+"""Exercise sessions. A session lists the people taking part, each with a plan of exercises, and moves them through the plan."""
 import time
 import uuid
 
@@ -11,6 +12,7 @@ KV_KEY = "session"
 
 
 class SessionError(Exception):
+    """Raised for a bad session request. The code says what kind of failure it was."""
 
     def __init__(self, code, message):
         super().__init__(message)
@@ -19,14 +21,17 @@ class SessionError(Exception):
 
 
 def _int(value, lo, hi):
+    """True for ints within a range, but not for booleans."""
     return isinstance(value, int) and not isinstance(value, bool) and lo <= value <= hi
 
 
 def _text(value, limit):
+    """True for strings no longer than the limit."""
     return isinstance(value, str) and len(value) <= limit
 
 
 def normalize_participants(raw):
+    """Check the participants sent by the web app and return a cleaned copy. Raises SessionError that names the first problem found."""
     if not isinstance(raw, list) or not raw:
         raise SessionError("invalid", "participants must be a non-empty list")
     if len(raw) > MAX_PARTICIPANTS:
@@ -71,10 +76,13 @@ def normalize_participants(raw):
 
 
 def exercise_progress(item, reps, set_gap, now):
+    """Progress through one exercise from the combined reps."""
     per_set = item.get("reps")
     target_sets = item.get("sets") or 1
     sets = compute_sets(reps, set_gap)
+    # Without a rep target any set that has reps counts as done
     sets_done = sum(1 for s in sets if per_set is None or s["reps"] >= per_set)
+    # The latest set is still in progress while its last rep is within the set gap
     current = sets[-1] if sets and now - sets[-1]["t_end"] <= set_gap else None
     in_progress = current is not None and (per_set is None or current["reps"] < per_set)
     target_total = target_sets * per_set if per_set else None
@@ -90,6 +98,7 @@ def exercise_progress(item, reps, set_gap, now):
 
 
 class SessionManager:
+    """Holds the one running session and saves it to the store after each change so it survives a restart."""
     def __init__(self, store=None, clock=time.time):
         self.store = store
         self.clock = clock
@@ -97,28 +106,35 @@ class SessionManager:
 
     @property
     def active(self):
+        """True while a session is running."""
         return bool(self._state) and self._state.get("ended_at") is None
 
     def state(self):
+        """The session, running or finished, or None."""
         return self._state
 
     def participant(self, patient_id):
+        """One participant's state, or None when they are not in the session."""
         return (self._state or {}).get("participants", {}).get(patient_id)
 
     def order(self):
+        """Patient ids in the order they were listed."""
         return list((self._state or {}).get("order", []))
 
     def current_item(self, patient_id):
+        """The plan item a patient is on now, or None when they are finished."""
         p = self.participant(patient_id)
         if not p or p["finished"]:
             return None
         return p["plan"][p["index"]]
 
     def _save(self):
+        """Write the session to the store."""
         if self.store:
             self.store.kv_set(KV_KEY, self._state)
 
     def start(self, raw_participants, auto_advance=False):
+        """Start a session. Only one can run at a time."""
         if self.active:
             raise SessionError("conflict", "A session is already running. End it first.")
         participants = normalize_participants(raw_participants)
@@ -133,6 +149,7 @@ class SessionManager:
         return self._state
 
     def end(self):
+        """Mark the session as ended."""
         if not self.active:
             raise SessionError("conflict", "No session is running")
         self._state["ended_at"] = self.clock()
@@ -140,12 +157,14 @@ class SessionManager:
         return self._state
 
     def set_auto_advance(self, enabled):
+        """Turn automatic advancing on or off."""
         if not self.active:
             raise SessionError("conflict", "No session is running")
         self._state["auto_advance"] = bool(enabled)
         self._save()
 
     def advance(self, patient_id, to_index=None):
+        """Move a participant to the next exercise, or to a chosen one. Finishing the last exercise marks them finished."""
         if not self.active:
             raise SessionError("conflict", "No session is running")
         p = self.participant(patient_id)
