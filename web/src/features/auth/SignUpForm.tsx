@@ -11,6 +11,7 @@ import { TextField } from '../../ui/fields';
 
 const ROLE_ICON: Record<Role, IconName> = { volunteer: 'volunteer', instructor: 'instructor', admin: 'team' };
 
+/** Request access form. The new account stays pending until an administrator approves it. */
 export function SignUpForm({ onSwitch }: { onSwitch: () => void }) {
   const { signUp } = useAuth();
   const [displayName, setDisplayName] = useState('');
