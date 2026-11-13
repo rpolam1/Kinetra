@@ -2,10 +2,12 @@ import type { LiveHeartRate } from '../../services/hub/types';
 import { Icon } from '../../ui/Icon';
 import { HEART_TONES } from './roster';
 
+/** The sentence read out by screen readers for a heart rate update. */
 export function heartAnnouncement(heart: LiveHeartRate): string {
   return heart.bpm === null ? heart.message : `${heart.bpm} beats per minute. ${heart.message}`;
 }
 
+/** The heart rate for one participant, with a message and the target range. Hidden when no watch is connected. */
 export function HeartReadout({ heart }: { heart: LiveHeartRate | undefined }) {
   if (!heart) return null;
   const tone = HEART_TONES[heart.status];
