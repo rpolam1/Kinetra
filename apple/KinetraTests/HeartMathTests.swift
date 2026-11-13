@@ -1,6 +1,8 @@
 import XCTest
 
+/** Tests for the heart rate calculations shared by the phone and the watch. */
 final class HeartMathTests: XCTestCase {
+    // Resting 60 and max 180 make the zone edges land on easy numbers, 0.4 and 0.6 of the scale
     private let zone = HeartZone(low: 108, high: 132, max: 180, resting: 60)
 
     func testPositionIsClampedBetweenRestingAndMax() {
