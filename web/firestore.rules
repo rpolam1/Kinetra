@@ -3,19 +3,26 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // True for any signed in user, whether or not they are approved yet
     function signedIn() { return request.auth != null; }
+    // The user profile document holds the role, so every rule reads it from here
     function profilePath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
     function hasActiveProfile() {
       return signedIn() && exists(profilePath()) && get(profilePath()).data.status == 'approved';
     }
     // '' when not approved, so role checks fail
     function role() { return hasActiveProfile() ? get(profilePath()).data.role : ''; }
+    // Admins manage people and can do everything staff can
     function isAdmin() { return role() == 'admin'; }
+    // Reading is open to every approved role, including volunteers
     function canRead() { return signedIn() && role() in ['admin', 'instructor', 'volunteer']; }
+    // Only admins and instructors can change clinical records
     function isStaff() { return signedIn() && role() in ['admin', 'instructor']; }
 
+    // A string that is not longer than the limit, so a client cannot store huge values
     function text(value, maxLength) { return value is string && value.size() <= maxLength; }
 
+    // The shape every patient document must have. The limits match the checks in the web app.
     function validPatient(p) {
       return text(p.firstName, 60) && p.firstName.size() > 0
         && text(p.lastName, 60) && p.lastName.size() > 0
@@ -30,6 +37,7 @@ service cloud.firestore {
     }
 
 
+    // Accounts. A person asks for access, and an admin approves it.
     match /users/{uid} {
       function roleValue(v) { return v in ['admin', 'instructor', 'volunteer']; }
       function ownFieldsOnly() {
@@ -71,6 +79,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Patients. Staff can create and edit, nobody can delete.
     match /patients/{patientId} {
       allow read: if canRead();
       allow create: if isStaff() && validPatient(request.resource.data)
