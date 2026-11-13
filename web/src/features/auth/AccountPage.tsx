@@ -7,6 +7,7 @@ import { Button } from '../../ui/Button';
 import { Alert, Avatar, Badge, Card, PageHeader } from '../../ui/display';
 import { SelectField } from '../../ui/fields';
 
+/** The signed in person's account. Shows what their role allows and lets them ask an administrator for more access. */
 export function AccountPage() {
   const { user, requestRole, signOut } = useAuth();
   const toast = useToast();
