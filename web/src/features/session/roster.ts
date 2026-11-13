@@ -3,6 +3,7 @@ import type { Patient, Prescription } from '../../domain';
 import type { HeartStatus, HeartZoneInput, Light, LiveParticipant, LiveProgress, PlanItem, SessionParticipantInput } from '../../services/hub/types';
 import type { IconName } from '../../ui/icons';
 
+/** Turns a prescription into the plan the hub runs, leaving out anything the hub does not need. */
 export function planFromPrescription(prescription: Prescription): PlanItem[] {
   const plan: PlanItem[] = [];
   for (const e of prescription.exercises) {
@@ -23,11 +24,13 @@ export function planFromPrescription(prescription: Prescription): PlanItem[] {
   return plan;
 }
 
+/** Something to tell the instructor about a person on the roster. Blocking ones stop the session from starting. */
 export interface RosterProblem {
   blocking: boolean;
   text: string;
 }
 
+/** Checks whether a person can be tracked and lists everything that is wrong. Missing calibration is only a warning because reps are still counted. */
 export function rosterProblems(patient: Patient, prescription: Prescription | null, uncalibrated: readonly string[]): RosterProblem[] {
   const problems: RosterProblem[] = [];
   if (patient.status === 'archived') problems.push({ blocking: true, text: 'Archived' });
@@ -39,6 +42,7 @@ export function rosterProblems(patient: Patient, prescription: Prescription | nu
   return problems;
 }
 
+/** The heart rate range for a patient, or null when it cannot be worked out. Beta blockers make the range unreliable, which is passed on. */
 export function heartZoneFor(patient: Patient, prescription: Prescription): HeartZoneInput | null {
   const zone = heartRateZone({
     age: computeAge(patient.dateOfBirth),
@@ -51,6 +55,7 @@ export function heartZoneFor(patient: Patient, prescription: Prescription): Hear
   return { resting: zone.restingHr, max: zone.maxHr, low: zone.lowBpm, high: zone.highBpm, reliable: !hasBetaBlocker(patient) };
 }
 
+/** Builds what the hub needs to track one person. The hub knows people by their code, not their record id. */
 export function toParticipantInput(patient: Patient, prescription: Prescription): SessionParticipantInput {
   return {
     patient_id: patient.code,
@@ -60,6 +65,7 @@ export function toParticipantInput(patient: Patient, prescription: Prescription)
   };
 }
 
+/** How a heart rate status is shown. */
 export interface HeartTone {
   label: string;
   text: string;
@@ -67,6 +73,7 @@ export interface HeartTone {
   pulse: boolean;
 }
 
+// Only a missing signal stops the heart from pulsing
 export const HEART_TONES: Readonly<Record<HeartStatus, HeartTone>> = {
   high: { label: 'Very high', text: 'text-red-800', tint: 'bg-red-100', pulse: true },
   above: { label: 'Above zone', text: 'text-amber-900', tint: 'bg-amber-100', pulse: true },
@@ -77,6 +84,7 @@ export const HEART_TONES: Readonly<Record<HeartStatus, HeartTone>> = {
   no_signal: { label: 'No signal', text: 'text-slate-500', tint: 'bg-slate-50', pulse: false },
 };
 
+/** How a status light is shown. A lower priority number means the person needs attention sooner. */
 export interface LightMeta {
   label: string;
   dot: string;
@@ -96,6 +104,7 @@ export const LIGHTS: Readonly<Record<Light, LightMeta>> = {
   finished: { label: 'Finished', dot: 'bg-teal-700', stripe: 'border-l-teal-700', tint: 'bg-teal-100', text: 'text-teal-900', icon: 'finished', priority: 5 },
 };
 
+/** Orders people by how much they need help. The sort is stable, so people with the same status keep their order. */
 export function sortByNeed<T extends Pick<LiveParticipant, 'light'>>(people: readonly T[]): T[] {
   return people
     .map((p, i) => ({ p, i }))
@@ -103,12 +112,14 @@ export function sortByNeed<T extends Pick<LiveParticipant, 'light'>>(people: rea
     .map((x) => x.p);
 }
 
+/** How many people are in each status. */
 export function countByLight(people: readonly Pick<LiveParticipant, 'light'>[]): Record<Light, number> {
   const counts: Record<Light, number> = { needs_help: 0, drifting: 0, not_detected: 0, resting: 0, on_track: 0, finished: 0 };
   for (const p of people) counts[p.light] += 1;
   return counts;
 }
 
+/** A short line describing where someone is in their exercise. */
 export function progressLabel(exercise: NonNullable<LiveParticipant['exercise']>, progress: LiveProgress | null): string {
   if (exercise.tracking === 'timed') return `${exercise.sets} × ${exercise.seconds ?? '?'} s`;
   if (!progress) return `${exercise.sets} sets`;
@@ -116,6 +127,7 @@ export function progressLabel(exercise: NonNullable<LiveParticipant['exercise']>
   return `Set ${progress.set_number} of ${exercise.sets} · ${progress.current_set_reps} of ${exercise.reps} reps`;
 }
 
+/** How far through an exercise someone is, from 0 to 1. */
 export function progressFraction(exercise: NonNullable<LiveParticipant['exercise']>, progress: LiveProgress | null): number {
   if (!progress || exercise.sets <= 0) return 0;
   const completedSets = Math.max(0, progress.set_number - 1);
@@ -123,6 +135,7 @@ export function progressFraction(exercise: NonNullable<LiveParticipant['exercise
   return Math.min(1, (completedSets + inSet) / exercise.sets);
 }
 
+/** The dose as one line, such as the sets, reps and load. */
 export function prescriptionLine(exercise: NonNullable<LiveParticipant['exercise']>): string {
   const amount = exercise.tracking === 'timed' ? `${exercise.sets} × ${exercise.seconds ?? '?'} s` : exercise.reps ? `${exercise.sets} × ${exercise.reps}` : `${exercise.sets} sets`;
   const extras = [exercise.load, exercise.modification ? `(${exercise.modification})` : ''].filter(Boolean);
