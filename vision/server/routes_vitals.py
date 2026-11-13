@@ -1,3 +1,4 @@
+"""HTTP routes for heart rate data from the watch and for the roster the watch app shows."""
 from flask import jsonify, request
 
 from server.heart import HeartError, parse_samples
@@ -7,6 +8,7 @@ MAX_DEVICE_ID = 80
 
 
 def register_vitals_routes(app, core):
+    """Add the heart rate routes to the app."""
     live = core.live
 
     def _fail(message, status=400):
@@ -14,6 +16,7 @@ def register_vitals_routes(app, core):
 
     @app.post("/api/vitals")
     def post_vitals():
+        """Accept heart rate samples for a patient and return their current status."""
         body = request.get_json(silent=True)
         if not isinstance(body, dict):
             return _fail("expected a JSON object")
@@ -29,6 +32,7 @@ def register_vitals_routes(app, core):
         with core.lock:
             core.heart.add(patient_id, samples)
             core.patients_seen.add(patient_id)
+            # The last time the watch was heard from decides whether it shows as connected
             core.devices[patient_id] = {"device_id": device_id, "last_seen": live.clock()}
             status = live.heart_status(patient_id)
         live.publish_live()
@@ -36,11 +40,13 @@ def register_vitals_routes(app, core):
 
     @app.get("/api/vitals/<patient_id>")
     def get_vitals(patient_id):
+        """Current heart rate status for a patient."""
         with core.lock:
             return jsonify({"patient_id": patient_id, "status": live.heart_status(patient_id)})
 
     @app.get("/api/watch/roster")
     def watch_roster():
+        """People the watch app can pick from. Those in the session come first, then those a camera can see."""
         now = live.clock()
         with core.lock:
             sess = live.session.state()
