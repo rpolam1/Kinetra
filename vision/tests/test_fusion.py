@@ -1,3 +1,4 @@
+"""Tests for merging reps seen by several cameras and for grouping reps into sets."""
 import os
 import sys
 
@@ -6,6 +7,7 @@ from server.fusion import RepFusion, compute_sets
 
 
 def obs(cam, t0, t1, patient="p1", track=None, score=90.0, cov=1.0, ex="squat", issues=None):
+    """One rep observation from a camera."""
     return {"event_id": f"{cam}-{t0}", "camera_id": cam, "track_key": track or f"{cam}-1",
             "patient_id": patient, "exercise": ex, "t_start": t0, "t_end": t1,
             "score": score, "label": None, "coverage": cov, "issues": issues or [],
@@ -13,6 +15,7 @@ def obs(cam, t0, t1, patient="p1", track=None, score=90.0, cov=1.0, ex="squat", 
 
 
 def n_reps(f, patient="__any__"):
+    """Number of combined reps."""
     return len(f.canonical_reps(patient))
 
 
