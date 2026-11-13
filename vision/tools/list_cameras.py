@@ -7,6 +7,7 @@ import cv2
 
 
 def probe(index, backend=None):
+    """Open one camera and return a frame from it, or None when it will not open."""
     cap = cv2.VideoCapture(index) if backend is None else cv2.VideoCapture(index, backend)
     if not cap.isOpened():
         cap.release()
@@ -22,6 +23,7 @@ def probe(index, backend=None):
 
 
 def main():
+    """Probe each camera number and save a still from every one that works."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--max", type=int, default=6, help="highest camera number to try (exclusive)")
     args = ap.parse_args()
