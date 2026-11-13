@@ -1,7 +1,9 @@
+/** The shapes of the hub's JSON. Field names stay in snake case to match what the hub sends. */
 export type Light = 'not_detected' | 'resting' | 'on_track' | 'drifting' | 'needs_help' | 'finished';
 
 export type PlanTracking = 'scored' | 'count_only' | 'timed' | 'manual';
 
+/** One exercise in a participant's plan, as the hub expects it. */
 export interface PlanItem {
   exercise_id: string;
   name: string;
@@ -23,6 +25,7 @@ export interface HeartZoneInput {
   reliable: boolean;
 }
 
+/** Heart rate status for the board. A null bpm means there is no signal. */
 export interface LiveHeartRate {
   bpm: number | null;
   age_seconds: number | null;
@@ -62,6 +65,7 @@ export interface LiveProgress {
   target_met: boolean;
 }
 
+/** Everything the board shows for one person. */
 export interface LiveParticipant {
   patient_id: string;
   board_name: string;
@@ -78,6 +82,7 @@ export interface LiveParticipant {
   done_count: number;
 }
 
+/** The live status of the whole session. */
 export interface LiveSnapshot {
   server_time: number;
   session: { id: string; active: boolean; started_at: number; ended_at: number | null; auto_advance: boolean } | null;
@@ -121,6 +126,7 @@ export interface SessionHeartSummary {
   zone: { low: number; high: number; max: number; resting: number } | null;
 }
 
+/** The hub's summary of a finished session. The app saves it to each patient's history. */
 export interface SessionSummary {
   session_id: string;
   started_at: number;
@@ -130,6 +136,7 @@ export interface SessionSummary {
 
 export type CalibrationStatus = 'pending' | 'active' | 'finished' | 'cancelled';
 export type RepDecision = 'pending' | 'kept' | 'discarded';
+/** Camera status during calibration. Other values are allowed so a newer hub does not break the page. */
 export type CaptureStatus =
   | 'ok'
   | 'no_person'
@@ -166,6 +173,7 @@ export interface CalibrationJob {
 
 export type Landmark = [number, number, number];
 
+/** One live preview frame during calibration. The landmarks are null when no person is seen. */
 export interface SkeletonFrame {
   job_id: string;
   status: CaptureStatus;
@@ -177,6 +185,7 @@ export interface SkeletonFrame {
   landmarks: Landmark[] | null;
 }
 
+/** One frame of a recorded rep, with the x, y and visibility of each landmark in one flat list. */
 export interface ReplayFrame {
   t: number;
   p: number[];
