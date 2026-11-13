@@ -6,6 +6,7 @@ import { CheckboxField, NumberField, SelectField, TextAreaField, TextField } fro
 import { AID_LABELS, FALLS_LABELS, REFERRAL_LABELS, SIDE_LABELS, STREAM_LABELS, SUPERVISION_LABELS, toOptions } from '../labels';
 import { BaselineTestEditor, MedicationEditor, StringListEditor } from './listEditors';
 
+/** What every section of the form receives. A section changes the data through update with just the fields it edits. */
 export interface SectionProps {
   data: PatientData;
   errors: FieldErrors;
@@ -15,6 +16,7 @@ export interface SectionProps {
 
 const grid = 'grid gap-4 sm:grid-cols-2';
 
+/** Name, date of birth and the name shown on the public board. */
 export function IdentitySection({ data, errors, update, disabled }: SectionProps) {
   const age = computeAge(data.dateOfBirth);
   return (
@@ -29,6 +31,7 @@ export function IdentitySection({ data, errors, update, disabled }: SectionProps
   );
 }
 
+/** Phone, email and emergency contact. */
 export function ContactSection({ data, errors, update, disabled }: SectionProps) {
   const ec = data.emergencyContact;
   const setEc = (patch: Partial<typeof ec>) => update({ emergencyContact: { ...ec, ...patch } });
@@ -45,6 +48,7 @@ export function ContactSection({ data, errors, update, disabled }: SectionProps)
   );
 }
 
+/** Program stream and referral. */
 export function ProgramSection({ data, errors, update, disabled }: SectionProps) {
   return (
     <Card title="Program and referral">
@@ -59,6 +63,7 @@ export function ProgramSection({ data, errors, update, disabled }: SectionProps)
   );
 }
 
+/** Diagnoses, medications and precautions. */
 export function HealthSection({ data, errors, update, disabled }: SectionProps) {
   return (
     <Card title="Health background" description="Only what the exercise program needs. Used for safety warnings and dosing.">
@@ -71,6 +76,7 @@ export function HealthSection({ data, errors, update, disabled }: SectionProps) 
   );
 }
 
+/** Mobility aid, falls risk and the supervision level. */
 export function SafetySection({ data, update, disabled }: SectionProps) {
   return (
     <Card title="Mobility and supervision" description="Tells instructors and volunteers how to look after them in the room.">
@@ -84,6 +90,7 @@ export function SafetySection({ data, update, disabled }: SectionProps) {
   );
 }
 
+/** Heart rate baseline, baseline tests and goals. Shows the cardio target, or a warning when a beta blocker makes it unreliable. */
 export function FitnessSection({ data, errors, update, disabled }: SectionProps) {
   const age = computeAge(data.dateOfBirth);
   const zone = heartRateZone({ age, restingHr: data.restingHr, maxHr: data.maxHr, lowPct: DOSE_GUIDELINES.cardioIntensityPct.low, highPct: DOSE_GUIDELINES.cardioIntensityPct.high });
@@ -110,6 +117,7 @@ export function FitnessSection({ data, errors, update, disabled }: SectionProps)
   );
 }
 
+/** Consent for the program and for camera tracking, with the date it was signed. */
 export function ConsentSection({ data, errors, update, disabled }: SectionProps) {
   const c = data.consent;
   // ticking a box sets the consent date to today, still editable
