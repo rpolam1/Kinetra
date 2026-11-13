@@ -14,10 +14,14 @@ import type { PatientSession } from '../src/domain';
 import { CAST } from './demo/cast';
 import { buildSessions } from './demo/history';
 
+// How many weeks of history are made when the flag is not given
 const DEFAULT_WEEKS = 12;
+// A fixed seed so two runs without flags make the same data
 const DEFAULT_SEED = 20260101;
+// Recorded as the author of everything the seeder writes
 const ACTOR = 'demo-seed';
 
+/** The command line options. */
 interface Options {
   clearOnly: boolean;
   dryRun: boolean;
@@ -25,6 +29,7 @@ interface Options {
   seed: number;
 }
 
+/** Reads the flags. A flag that is missing falls back to its default, and a bad number stops the run. */
 function parseArgs(argv: readonly string[]): Options {
   const value = (flag: string, fallback: number): number => {
     const at = argv.indexOf(flag);
@@ -40,6 +45,7 @@ function parseArgs(argv: readonly string[]): Options {
   };
 }
 
+/** Stops early if any demo person would be rejected by the same checks the app uses. */
 function validateCast(): void {
   for (const person of CAST) {
     const errors = validatePatientData(cleanPatientData(person.data));
@@ -47,6 +53,7 @@ function validateCast(): void {
   }
 }
 
+/** One line of the dry run output for a person. */
 function summarize(slug: string, sessions: readonly PatientSession[]): string {
   const report = buildProgressReport(sessions);
   const heart = report.heart;
@@ -55,6 +62,7 @@ function summarize(slug: string, sessions: readonly PatientSession[]): string {
   return `${slug.padEnd(18)} ${String(sessions.length).padStart(3)} sessions   heart avg ${avg.padEnd(8)} in zone ${zone}`;
 }
 
+/** The project id from the service account file, printed so the person can see which project is about to change. */
 function projectOf(): string {
   const path = process.env.GOOGLE_APPLICATION_CREDENTIALS;
   if (!path) throw new Error('Set GOOGLE_APPLICATION_CREDENTIALS to the path of your service-account JSON file.');
@@ -62,6 +70,7 @@ function projectOf(): string {
   return parsed.project_id ?? 'unknown project';
 }
 
+/** Removes earlier demo patients and writes new ones. Only documents marked as demo are deleted. */
 async function writeToFirestore(options: Options, plans: readonly { slug: string; sessions: (patientId: string) => PatientSession[] }[]): Promise<void> {
   const project = projectOf();
   initializeApp({ credential: applicationDefault() });
@@ -70,6 +79,7 @@ async function writeToFirestore(options: Options, plans: readonly { slug: string
   console.log(`Project: ${project}`);
   console.log('Looking for earlier demo patients...');
 
+  // Earlier demo patients keep their code and tag, so printed tags stay valid after a reseed
   const previous = new Map<string, { code: string; tagId: number | null }>();
   const old = await db.collection('patients').where('demo', '==', true).get();
   for (const snap of old.docs) {
@@ -77,6 +87,7 @@ async function writeToFirestore(options: Options, plans: readonly { slug: string
     previous.set(snap.id, { code: String(data.code), tagId: typeof data.tagId === 'number' ? data.tagId : null });
   }
   for (const snap of old.docs) await db.recursiveDelete(snap.ref);
+  // The registry is cleaned in a transaction so the tag list never points at a deleted patient
   await db.runTransaction(async (tx) => {
     const registry = (await tx.get(registryRef)).data() ?? { nextCode: 1, tags: {} };
     const tags = { ...(registry.tags ?? {}) } as Record<string, { patientId: string }>;
@@ -88,6 +99,7 @@ async function writeToFirestore(options: Options, plans: readonly { slug: string
   if (options.clearOnly) return;
 
   const now = Date.now();
+  // Codes and tags are handed out in one transaction so two runs cannot take the same number
   const allocation = await db.runTransaction(async (tx) => {
     const registry = (await tx.get(registryRef)).data() ?? { nextCode: 1, tags: {} };
     const tags = { ...(registry.tags ?? {}) } as Record<string, unknown>;
@@ -152,6 +164,7 @@ async function writeToFirestore(options: Options, plans: readonly { slug: string
   }
 }
 
+/** Reads the flags, checks the cast, then either prints a dry run or writes to Firestore. */
 async function main(): Promise<void> {
   console.log('Kinetra demo data seeder starting.');
   const options = parseArgs(process.argv.slice(2));
@@ -171,6 +184,7 @@ async function main(): Promise<void> {
   if (!options.clearOnly) console.log('\nDone. Sign in to the web app and open Patients to see the demo people.');
 }
 
+// The Firebase client can leave the process hanging, so the process is ended explicitly once the work is done
 const keepAlive = setInterval(() => undefined, 1000);
 
 process.on('exit', (code) => {
