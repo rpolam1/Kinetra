@@ -1,9 +1,11 @@
 import SwiftUI
 
+/** A searchable list of the people who can wear the watch. Those in today's session come first. */
 struct PersonPickerView: View {
     @Environment(AppModel.self) private var model
     @State private var query = ""
 
+    /** The people matching the search, which can be a name or a tag number. */
     private var matches: [RosterPerson] {
         let text = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !text.isEmpty else { return model.people }
@@ -56,6 +58,7 @@ struct PersonPickerView: View {
         }
     }
 
+    /** What is shown when no one is registered yet. */
     private var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "person.crop.rectangle.stack").font(.largeTitle).foregroundStyle(.secondary)
@@ -69,6 +72,7 @@ struct PersonPickerView: View {
         .padding(.vertical, 24)
     }
 
+    /** One person in the list. */
     private func row(_ person: RosterPerson) -> some View {
         Button {
             model.choose(person)
