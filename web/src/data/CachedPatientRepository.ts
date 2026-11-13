@@ -8,6 +8,7 @@ interface Entry<T> {
   at: number;
 }
 
+/** Wraps a patient repository with a short lived cache, so repeated searches and page visits do not reach the database. Any write clears the whole cache. */
 export class CachedPatientRepository implements PatientRepository {
   private searches = new Map<string, Entry<Patient[]>>();
   private recents = new Map<number, Entry<Patient[]>>();
@@ -31,6 +32,7 @@ export class CachedPatientRepository implements PatientRepository {
 
   async search(query: string, limit: number = DEFAULT_SEARCH_LIMIT): Promise<Patient[]> {
     const intent = classifySearchQuery(query);
+    // A query with nothing to search for never reaches the database
     if (intent.kind === 'empty') return [];
     const key = `${limit}|${JSON.stringify(intent)}`;
     const hit = this.searches.get(key);
