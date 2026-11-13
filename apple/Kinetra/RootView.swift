@@ -1,5 +1,6 @@
 import SwiftUI
 
+/** Picks the screen from the current step. */
 struct RootView: View {
     @Environment(AppModel.self) private var model
 
