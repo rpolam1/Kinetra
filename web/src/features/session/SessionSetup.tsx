@@ -10,12 +10,14 @@ import { Alert, Avatar, Badge, Card, EmptyState, Spinner } from '../../ui/displa
 import { rosterProblems, toParticipantInput } from './roster';
 import type { RosterProblem } from './roster';
 
+/** A person on today's roster with their prescription and anything that could stop them from being tracked. */
 interface Entry {
   patient: Patient;
   prescription: Prescription | null;
   problems: RosterProblem[];
 }
 
+/** Picks who is in the room and starts the session. Blocking problems, such as missing consent, stop the start button. */
 export function SessionSetup({ onStart, starting }: { onStart: (participants: SessionParticipantInput[], autoAdvance: boolean) => void; starting: boolean }) {
   const { patients, prescriptions, calibrations } = useData();
   const [text, setText] = useState('');
@@ -30,6 +32,7 @@ export function SessionSetup({ onStart, starting }: { onStart: (participants: Se
     setAdding(patient.id);
     setAddError(null);
     try {
+      // The prescription and calibrations are read now, so the problems list is correct at the moment the person is added
       const [rx, records] = await Promise.all([prescriptions.current(patient.id), calibrations.forPatient(patient.id)]);
       const calibrated = new Set(records.map((r) => r.exerciseId));
       const uncalibrated = (rx?.exercises ?? [])
@@ -43,6 +46,7 @@ export function SessionSetup({ onStart, starting }: { onStart: (participants: Se
     }
   }
 
+  // The list is kept as a map for quick lookups and turned into an array only for display
   const entries = useMemo(() => [...roster.values()], [roster]);
   const startable = entries.length > 0 && entries.every((e) => !e.problems.some((p) => p.blocking));
 
