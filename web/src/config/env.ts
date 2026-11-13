@@ -1,5 +1,7 @@
+/** Build time settings. Vite replaces the VITE_ variables when the app is built. */
 type EnvBag = Readonly<Record<string, string | undefined>>;
 
+// The cast lets this file load under tests, where import.meta.env may not exist
 const raw: EnvBag = (import.meta as unknown as { env?: EnvBag }).env ?? {};
 
 export type DataBackend = 'memory' | 'firebase';
@@ -11,9 +13,11 @@ export interface FirebaseConfig {
   appId: string;
 }
 
+/** The app's settings. The memory backend is used unless Firebase is chosen, so local development works without an account. */
 export const env = {
   baseUrl: raw.BASE_URL ?? '/',
   dataBackend: (raw.VITE_DATA_BACKEND === 'firebase' ? 'firebase' : 'memory') as DataBackend,
+  // A trailing slash is removed so paths can be added directly
   hubUrl: (raw.VITE_HUB_URL ?? '').replace(/\/+$/, ''),
   firebase: {
     apiKey: raw.VITE_FIREBASE_API_KEY ?? '',
@@ -23,6 +27,7 @@ export const env = {
   },
 } as const;
 
+/** Return the Firebase settings, or throw with the names of the variables that are empty. */
 export function requireFirebaseConfig(config: FirebaseConfig = env.firebase): FirebaseConfig {
   const missing = (Object.entries(config) as [keyof FirebaseConfig, string][])
     .filter(([, value]) => !value)
