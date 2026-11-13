@@ -1,3 +1,4 @@
+"""The camera's connection to the hub. Finds the hub, keeps the clock in step and delivers events without blocking the video loop."""
 import collections
 import concurrent.futures
 import threading
@@ -10,6 +11,7 @@ from formcheck.discovery import find_hub, normalize_url
 
 
 class HubLink:
+    """Connection from a camera client to the hub. Events are queued and sent by a background thread, and the hub address is looked up again if it stops answering."""
     def __init__(self, base_url, camera_id, api_key=None, flush_interval=0.5,
                  poll_interval=2.0, timeout=2.0, clock=time.time, discovery=None, log=print):
         self._preferred = None if (not base_url or base_url == "auto") else base_url
@@ -23,10 +25,12 @@ class HubLink:
         self.flush_interval = flush_interval
         self.poll_interval = poll_interval
         self._clock = clock
+        # Hub time minus local time, so event timestamps line up across cameras
         self.offset = 0.0
         self.online = False
         self.state = {"assignments": {}, "set_gap_seconds": 20.0}
         self.sent = 0
+        # Bounded so a long outage cannot use unlimited memory
         self._buf = collections.deque(maxlen=20000)
         self._lock = threading.Lock()
         self._stop = threading.Event()
@@ -40,6 +44,7 @@ class HubLink:
             self._session.headers["X-API-Key"] = api_key
 
     def discover(self, force=False):
+        """Find the hub, at most once every 10 seconds unless forced. Returns True when a hub address is known."""
         if not force and time.time() - self._last_discover < 10.0:
             return self.base is not None
         self._last_discover = time.time()
@@ -58,6 +63,7 @@ class HubLink:
         return t_local + self.offset
 
     def sync_clock(self, samples=5):
+        """Estimate the clock offset to the hub. The reply with the shortest round trip is used because it has the least timing error."""
         best = None
         if not self.base:
             self.online = False
@@ -82,6 +88,7 @@ class HubLink:
         return self.offset
 
     def track_key(self, track_id):
+        """Id for a tracked person that stays unique across cameras and restarts."""
         return f"{self.camera_id}-{self.run_id}-{track_id}"
 
     def send_rep(self, judgment, patient_id, track_id, exercise, id_source=None):
@@ -120,6 +127,7 @@ class HubLink:
             return len(self._buf)
 
     def flush(self):
+        """Send queued events in batches of 200. Events are only removed after the hub accepts them, so nothing is lost while it is offline. Returns False when a batch could not be sent."""
         while True:
             with self._lock:
                 batch = list(self._buf)[:200]
@@ -144,6 +152,7 @@ class HubLink:
             self.online = True
 
     def post_latest(self, path, payload):
+        """Queue a payload for a path, replacing any older one still waiting. Used for live data where only the newest value matters."""
         with self._latest_lock:
             self._latest[path] = payload
         self._latest_wake.set()
@@ -166,6 +175,7 @@ class HubLink:
             self._flush_latest()
 
     def submit(self, fn):
+        """Run a short task on a small worker pool so the camera loop is not blocked."""
         if self._pool is None:
             self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="hublink")
         self._pool.submit(fn)
@@ -174,6 +184,7 @@ class HubLink:
         self.post_latest("/api/presence", {"camera_id": self.camera_id, "people": people})
 
     def calibration_jobs(self):
+        """Calibration jobs addressed to this camera or to any camera."""
         return [j for j in (self.state.get("calibration") or []) if j.get("camera_id") in (None, self.camera_id)]
 
     def claim_calibration(self, job_id):
@@ -242,6 +253,7 @@ class HubLink:
             ok = self.flush()
             if not ok:
                 self.discover()  # hub may have moved / restarted
+            # Wait longer after each failure, up to 5 seconds
             backoff = 0.0 if ok else min(max(backoff * 2, 1.0), 5.0)
             self._stop.wait(self.flush_interval + backoff)
 
@@ -258,6 +270,7 @@ class HubLink:
             self._stop.wait(0.5 if self.state.get("calibration") else self.poll_interval)
 
     def close(self, flush_timeout=3.0):
+        """Try to send what is still queued, then stop the background threads."""
         deadline = time.time() + flush_timeout
         while self.pending() and time.time() < deadline:
             if self.flush():
