@@ -1,3 +1,4 @@
+"""Tests for the live features of the hub: the board, sessions, auto advance, presence, calibration jobs and the event stream."""
 import json, os, sys, tempfile, threading, time
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -10,52 +11,62 @@ CONFIG = default_exercise_config_path()
 
 
 def make(clock=None, db=":memory:"):
+    """A test client, the hub core and a fake clock that tests can move forward."""
     now = [1000.0]
     core = HubCore(db, exercise_config_path=CONFIG, clock=clock or (lambda: now[0]))
     return create_app(core).test_client(), core, now
 
 
 def plan(*items):
+    """A plan with one goblet squat item. Keyword arguments override its fields."""
     return [dict({"exercise_id": "goblet_squat", "name": "Goblet squats", "tracking": "scored", "sets": 2, "reps": 3}, **i)
             for i in (items or ({},))]
 
 
 def person(pid="P-0001", name="Ana K.", **kw):
+    """A session participant with a default plan."""
     return {"patient_id": pid, "board_name": name, "plan": plan(*kw.get("items", ()))}
 
 
 def start(c, participants=None, auto=False):
+    """Start a session and return its state."""
     r = c.put("/api/session", json={"participants": participants or [person()], "auto_advance": auto})
     assert r.status_code == 200, r.json
     return r.json
 
 
 def rep(t0, score=95.0, pid="P-0001", ex="goblet_squat", cam="cam1", label=None, eid=None):
+    """A rep event. The label follows the score unless one is given."""
     label = label or ("good_form" if score >= 80 else "needs_correction" if score >= 50 else "flag_for_instructor")
     return {"type": "rep", "event_id": eid or f"{cam}-{pid}-{t0}", "patient_id": pid, "track_key": f"{cam}-1",
             "exercise": ex, "t_start": t0, "t_end": t0 + 2.0, "score": score, "label": label, "coverage": 1.0, "issues": []}
 
 
 def with_rom(ev, rom):
+    """Copy of a rep event with a range of motion added."""
     return {**ev, "rom": rom}
 
 
 def post_reps(c, *reps, cam="cam1"):
+    """Post rep events from one camera."""
     r = c.post("/api/events", json={"camera_id": cam, "events": list(reps)})
     assert r.status_code == 200, r.json
     return r.json
 
 
 def present(c, pid="P-0001", cam="cam1"):
+    """Report that a camera can see the patient."""
     assert c.post("/api/presence", json={"camera_id": cam, "people": [
         {"patient_id": pid, "track_key": f"{cam}-1", "id_source": "tag", "exercise": "goblet_squat"}]}).status_code == 200
 
 
 def snap(c):
+    """The live snapshot."""
     return c.get("/api/live").json
 
 
 def p0(c):
+    """The first participant on the board."""
     return snap(c)["participants"][0]
 
 
@@ -246,12 +257,14 @@ def test_session_survives_a_hub_restart():
 
 
 def new_job(c, camera="camA", exercise="goblet_squat", **kw):
+    """Create a calibration job and return its id."""
     r = c.post("/api/calibration", json=dict({"patient_id": "P-0001", "exercise": exercise, "camera_id": camera}, **kw))
     assert r.status_code == 201, r.json
     return r.json["id"]
 
 
 def upload(c, job_id, camera, reps):
+    """Upload calibration reps as events from a camera."""
     for i, rep_payload in enumerate(reps):
         r = c.post("/api/events", json={"camera_id": camera, "events": [dict(
             rep_payload, type="calibration_rep", event_id=f"{job_id}-{i}", job_id=job_id)]})
@@ -340,6 +353,7 @@ def test_live_frame_endpoint_and_cancel():
 
 
 class Reader(threading.Thread):
+    """Reads the server sent event stream in a background thread and collects the events."""
 
     def __init__(self, url):
         super().__init__(daemon=True)
@@ -347,6 +361,7 @@ class Reader(threading.Thread):
         self._r = None
 
     def run(self):
+        """Read events until the connection closes."""
         try:
             self._r = requests.get(self.url, stream=True, timeout=(3, 30))
             event = {}
@@ -368,6 +383,7 @@ class Reader(threading.Thread):
             self._r.close()
 
     def wait_for(self, predicate, timeout=6.0):
+        """Wait for an event that matches the predicate."""
         deadline = time.time() + timeout
         while time.time() < deadline:
             for e in list(self.events):
