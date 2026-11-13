@@ -1,8 +1,11 @@
 import type { Patient, PatientData } from './types';
 
+/** Highest AprilTag id. The 36h11 family has ids 0 to 586, which is also the limit the hub enforces. */
 export const MAX_TAG_ID = 586;
+/** Shorter name searches are treated as empty so the list does not search on one letter. */
 export const MIN_NAME_QUERY_LENGTH = 2;
 
+/** A blank form with safe defaults. Consent starts as not given. */
 export function emptyPatientData(): PatientData {
   return {
     firstName: '',
@@ -32,6 +35,7 @@ export function emptyPatientData(): PatientData {
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
+/** True for a real calendar date in YYYY-MM-DD form. Dates such as 2024-02-31 are rejected. */
 export function isValidIsoDate(value: string): boolean {
   const m = ISO_DATE.exec(value);
   if (!m) return false;
@@ -40,6 +44,7 @@ export function isValidIsoDate(value: string): boolean {
   return date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d;
 }
 
+/** Age in whole years, or null for an invalid date or one in the future. */
 export function computeAge(dateOfBirth: string, today: Date = new Date()): number | null {
   if (!isValidIsoDate(dateOfBirth)) return null;
   const [y, mo, d] = dateOfBirth.split('-').map(Number) as [number, number, number];
@@ -50,11 +55,13 @@ export function computeAge(dateOfBirth: string, today: Date = new Date()): numbe
   return age >= 0 ? age : null;
 }
 
+/** Today's date as YYYY-MM-DD in the local time zone, because the person thinks in local dates. */
 export function todayIso(today: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
 }
 
+/** Lowercase, trimmed text with accents removed, so searches ignore case and accents. */
 export function normalizeText(value: string): string {
   return value
     .normalize('NFD')
@@ -64,18 +71,21 @@ export function normalizeText(value: string): string {
     .replace(/\s+/g, ' ');
 }
 
+/** The two forms of the name that searches compare against, last name first and first name first. */
 export function buildNameKeys(firstName: string, lastName: string): { nameKey: string; nameKeyAlt: string } {
   const first = normalizeText(firstName);
   const last = normalizeText(lastName);
   return { nameKey: `${last} ${first}`.trim(), nameKeyAlt: `${first} ${last}`.trim() };
 }
 
+/** The name shown on the public board. A first name and last initial keeps the full name private. */
 export function defaultBoardName(firstName: string, lastName: string): string {
   const first = firstName.trim();
   const initial = lastName.trim().charAt(0).toUpperCase();
   return initial ? `${first} ${initial}.` : first;
 }
 
+/** Patient codes look like P-0007. */
 export function formatPatientCode(sequence: number): string {
   return `P-${String(sequence).padStart(4, '0')}`;
 }
@@ -86,13 +96,16 @@ export type SearchIntent =
   | { kind: 'tag'; tagId: number }
   | { kind: 'name'; prefix: string };
 
+/** Decide what a search box entry means. It can be a patient code, a tag number, a name prefix or nothing useful. */
 export function classifySearchQuery(raw: string): SearchIntent {
   const text = raw.trim();
   if (text === '') return { kind: 'empty' };
 
+  // The dash in a code is optional
   const code = /^p-?(\d{1,6})$/i.exec(text);
   if (code) return { kind: 'code', code: formatPatientCode(Number(code[1])) };
 
+  // A bare number up to three digits is read as a tag id
   const tag = /^#?(\d{1,3})$/.exec(text);
   if (tag) {
     const tagId = Number(tag[1]);
@@ -103,6 +116,7 @@ export function classifySearchQuery(raw: string): SearchIntent {
   return prefix.length >= MIN_NAME_QUERY_LENGTH ? { kind: 'name', prefix } : { kind: 'empty' };
 }
 
+/** Error messages keyed by field path, for example emergencyContact.phone. */
 export type FieldErrors = Record<string, string>;
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -116,6 +130,7 @@ function validPhone(value: string): boolean {
   return n >= 7 && n <= 15;
 }
 
+/** Check a patient form. Only the first message for each field is kept. */
 export function validatePatientData(data: PatientData, today: Date = new Date()): FieldErrors {
   const errors: FieldErrors = {};
   const add = (key: string, message: string) => {
@@ -176,6 +191,7 @@ export function validatePatientData(data: PatientData, today: Date = new Date())
   if (data.goals.length > 2000) add('goals', 'Keep it under 2000 characters');
   if (data.referralNotes.length > 1000) add('referralNotes', 'Keep it under 1000 characters');
 
+  // Consent has to be dated whenever either kind is given
   if (data.consent.exercise || data.consent.cameraTracking) {
     if (!isValidIsoDate(data.consent.signedOn)) {
       add('consent.signedOn', 'Enter the date consent was signed');
@@ -186,10 +202,12 @@ export function validatePatientData(data: PatientData, today: Date = new Date())
   return errors;
 }
 
+/** True when there is at least one error. */
 export function hasErrors(errors: FieldErrors): boolean {
   return Object.keys(errors).length > 0;
 }
 
+/** Trim text fields and drop empty list entries before saving. */
 export function cleanPatientData(data: PatientData): PatientData {
   return {
     ...data,
@@ -216,6 +234,7 @@ export function cleanPatientData(data: PatientData): PatientData {
   };
 }
 
+/** Remove the fields the system fills in, leaving what an instructor edits. */
 export function toPatientData(patient: Patient): PatientData {
   const {
     id: _id,
