@@ -1,3 +1,4 @@
+"""Heart rate handling for the hub. Checks incoming samples, compares readings with a target zone and summarises a session."""
 import math
 
 STALE_SECONDS = 15.0
@@ -21,14 +22,17 @@ MESSAGES = {
 
 
 class HeartError(ValueError):
+    """Raised when heart rate input is not valid."""
     pass
 
 
 def _number(value, lo, hi):
+    """True for finite ints and floats within a range, but not for booleans."""
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and lo <= value <= hi
 
 
 def normalize_zone(raw):
+    """Check a target zone sent by the app and return it in a clean form. None means no zone is set."""
     if raw is None:
         return None
     if not isinstance(raw, dict):
@@ -43,10 +47,12 @@ def normalize_zone(raw):
 
 
 def high_alert_bpm(zone):
+    """The rate above which the hub warns that the heart rate is very high, taken as a share of the reserve above resting."""
     return zone["resting"] + HIGH_RESERVE_FRACTION * (zone["max"] - zone["resting"])
 
 
 def classify(bpm, zone):
+    """Name the status of a reading against the zone."""
     if zone is None:
         return "no_target"
     if not zone["reliable"]:
@@ -61,6 +67,7 @@ def classify(bpm, zone):
 
 
 def evaluate(sample, now, zone):
+    """Describe the latest sample for display. A sample older than STALE_SECONDS counts as no signal."""
     public_zone = None if zone is None else {k: zone[k] for k in ("low", "high", "max", "resting")}
     if sample is None or now - sample["t"] > STALE_SECONDS:
         return {"bpm": None if sample is None else round(sample["bpm"]),
@@ -72,6 +79,7 @@ def evaluate(sample, now, zone):
 
 
 def parse_samples(raw, now):
+    """Validate a batch of samples from the watch and return them sorted by time. Times far from the hub clock are rejected."""
     if not isinstance(raw, list) or not raw:
         raise HeartError("samples must be a non-empty list")
     if len(raw) > MAX_SAMPLES_PER_POST:
@@ -87,6 +95,7 @@ def parse_samples(raw, now):
 
 
 def summarize(samples, zone):
+    """Average, range and time spent in each zone band for a set of samples."""
     if not samples:
         return None
     ordered = sorted(samples, key=lambda s: s["t"])
@@ -94,6 +103,7 @@ def summarize(samples, zone):
     out = {"samples": len(ordered), "avg_bpm": round(sum(bpms) / len(bpms)), "min_bpm": round(min(bpms)),
            "max_bpm": round(max(bpms)), "seconds_total": 0.0, "seconds_in_zone": None, "seconds_below": None,
            "seconds_above": None, "zone": None if zone is None else {k: zone[k] for k in ("low", "high", "max", "resting")}}
+    # Each sample covers the time until the next one, capped so a gap in data is not counted as exercise
     weights = []
     for i, s in enumerate(ordered):
         nxt = ordered[i + 1]["t"] - s["t"] if i + 1 < len(ordered) else 1.0
@@ -114,19 +124,23 @@ def summarize(samples, zone):
 
 
 class HeartLog:
+    """Newest heart rate sample per patient, backed by the store."""
 
     def __init__(self, store):
         self.store = store
         self._latest = {}
 
     def add(self, patient_id, samples):
+        """Save samples and keep the newest one in memory."""
         self.store.add_heart_samples(patient_id, samples)
         newest = samples[-1]
         current = self._latest.get(patient_id)
+        # Samples can arrive out of order, so an older one must not replace the cached reading
         if current is None or newest["t"] >= current["t"]:
             self._latest[patient_id] = dict(newest)
 
     def latest(self, patient_id):
+        """The newest sample for a patient, or None. The store is read the first time a patient is asked for."""
         if patient_id not in self._latest:
             found = self.store.latest_heart(patient_id)
             if found is None:
@@ -135,4 +149,5 @@ class HeartLog:
         return self._latest[patient_id]
 
     def between(self, patient_id, since, until=None):
+        """Samples for a patient within a time range."""
         return self.store.heart_samples(patient_id, since, until)
