@@ -1,12 +1,15 @@
+/** Tests for what the patient list shows while a new search is still loading. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { buildNameKeys, classifySearchQuery, interimRows, searchKey, snapshotOf } from '../src/domain';
 import type { Patient } from '../src/domain';
 
+/** A patient with just enough fields for the search tests. */
 function patient(id: string, first: string, last: string): Patient {
   return { id, firstName: first, lastName: last, ...buildNameKeys(first, last) } as unknown as Patient;
 }
 
+// Three names that start with different letters, so each prefix matches a different person
 const ROWS = [patient('1', 'Ana', 'Kowalski'), patient('2', 'Karl', 'Nguyen'), patient('3', 'Kim', 'Lee'), patient('4', 'Omar', 'Khan')];
 
 describe('interim search rows', () => {
