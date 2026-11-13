@@ -15,10 +15,12 @@ interface AccountsContextValue {
 const EMPTY: AccountsContextValue = { accounts: [], awaitingCount: 0, loading: false, error: null };
 const AccountsContext = createContext<AccountsContextValue>(EMPTY);
 
+/** All accounts and how many are waiting for a decision. Empty unless the person may manage users. */
 export function useAccounts(): AccountsContextValue {
   return useContext(AccountsContext);
 }
 
+/** Loads and watches accounts, but only for people who may manage users, so other roles never request the list. */
 export function AccountsProvider({ children }: { children: ReactNode }) {
   const { accounts: repo } = useData();
   const { can } = useAuth();
