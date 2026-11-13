@@ -1,10 +1,12 @@
 import SwiftUI
 
+/** The brand colours, matching the teal used in the web app. */
 enum Brand {
     static let teal = Color(red: 0.059, green: 0.463, blue: 0.431)
     static let deep = Color(red: 0.043, green: 0.231, blue: 0.220)
 }
 
+/** How each heart rate status looks and reads, shared by the phone and the watch so they always agree. */
 extension HeartStatus {
     var tint: Color {
         switch self {
@@ -17,6 +19,7 @@ extension HeartStatus {
         }
     }
 
+    /** The short heading shown for the status. */
     var title: String {
         switch self {
         case .inZone: return "In your zone"
@@ -29,6 +32,7 @@ extension HeartStatus {
         }
     }
 
+    /** The icon shown with the status. The arrows point the way the person should move, so a low heart rate shows an up arrow. */
     var symbol: String {
         switch self {
         case .inZone: return "checkmark.circle.fill"
@@ -40,6 +44,7 @@ extension HeartStatus {
         }
     }
 
+    /** A plain sentence that tells the person what to do. */
     var coachingLine: String {
         switch self {
         case .inZone: return "Right where you should be"
