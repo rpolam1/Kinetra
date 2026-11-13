@@ -1,3 +1,4 @@
+/** Tests for heart rate in the session summary, the progress report and the printed report. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { buildProgressReport, emptyPatientData, heartProgress, sessionsFromSummary } from '../src/domain';
@@ -9,14 +10,17 @@ import type { SessionSummary } from '../src/services/hub/types';
 const DAY = 86_400_000;
 const MON = Date.UTC(2026, 0, 5);
 
+/** An exercise result with defaults. */
 function result(over: Partial<ExerciseResult> = {}): ExerciseResult {
   return { exerciseId: 'goblet_squat', name: 'Goblet squat', tracking: 'scored', targetSets: 2, targetReps: 10, reps: 20, sets: 2, good: 14, needsCorrection: 4, flagged: 2, avgScore: 78, avgRom: 70, avgRepSeconds: 2, completed: true, ...over };
 }
 
+/** A heart summary for one session with defaults. */
 function heart(over: Partial<SessionHeart> = {}): SessionHeart {
   return { samples: 100, avgBpm: 120, minBpm: 90, maxBpm: 150, secondsTotal: 100, secondsInZone: 60, secondsBelow: 20, secondsAbove: 20, zoneLow: 108, zoneHigh: 132, ...over };
 }
 
+/** A saved session on the given day of the week, with or without heart data. */
 function session(id: string, day: number, h: SessionHeart | null | undefined): PatientSession {
   const startedAt = MON + day * DAY;
   return { id, patientId: 'p1', startedAt, endedAt: startedAt + 1_800_000, exercises: [result()], heart: h, savedBy: 'u1' };
@@ -24,6 +28,7 @@ function session(id: string, day: number, h: SessionHeart | null | undefined): P
 
 const patient = { firstName: 'Ann', lastName: 'Lee', code: 'P-0001', dateOfBirth: '1950-01-01', goals: '' } as Patient;
 
+/** A complete patient record for tests that need every field. */
 function fullPatient(over: Partial<Patient> = {}): Patient {
   return { ...emptyPatientData(), id: 'p1', code: 'P-0001', tagId: 3, status: 'active', nameKey: '', nameKeyAlt: '', firstName: 'Ann', lastName: 'Lee', boardName: 'Ann L.', dateOfBirth: '1960-01-01', restingHr: 70, maxHr: null, ...over } as Patient;
 }
