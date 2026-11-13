@@ -1,3 +1,4 @@
+"""Turns a frame of pose landmarks into the angles and signals that the rest of the pipeline works with."""
 import math
 import time
 
@@ -32,6 +33,7 @@ DEFAULT_SIGNAL_SETS = {
 
 
 class FeatureExtractor:
+    """Turns one frame of landmarks into the primary joint angle and the extra form signals the scorer uses. Uses 3D world landmarks when they exist so angles do not depend on the camera view."""
     def __init__(self, exercise_config, min_visibility=DEFAULT_MIN_VISIBILITY):
         self.angle_joint = exercise_config.get("angle_joint")
         self.symmetry_check = exercise_config.get("symmetry_check", False)
@@ -51,6 +53,7 @@ class FeatureExtractor:
         return get_visible_point(landmarks, name, frame_shape, self.min_visibility)
 
     def extract(self, landmarks, frame_shape):
+        """Return a feature dict for one frame, or None when the needed joints are not visible."""
         if landmarks is None or self.angle_joint is None:
             return None
         self._world = has_world(landmarks)
@@ -74,6 +77,7 @@ class FeatureExtractor:
         return feature
 
     def _extract_signals(self, landmarks, frame_shape):
+        # Several signals need the same point, so each landmark is looked up once per frame
         cache = {}
         self._frame_h = float(frame_shape[0])
 
@@ -85,6 +89,7 @@ class FeatureExtractor:
             return cache[key]
 
         def torso(flat=False):
+            """Use whichever side has both shoulder and hip visible."""
             for side in ("l", "r"):
                 s, h = pt("shoulder", side, flat), pt("hip", side, flat)
                 if s is not None and h is not None:
@@ -115,6 +120,7 @@ class FeatureExtractor:
             t = torso(True)
             return t[1][1] / self._frame_h if t else None
 
+        # Standing torso length, used by the scorer to scale the hip_y range
         if name == "torso_len":
             t = torso(True)
             return math.dist(t[0], t[1]) / self._frame_h if t else None
@@ -135,6 +141,7 @@ class FeatureExtractor:
                 return None
             leg_len = math.dist(hip, ankle)
             dy = ankle[1] - hip[1]
+            # Skip a degenerate or horizontal leg, since the knee cannot be projected onto the line
             if leg_len < 1e-6 or abs(dy) < 1e-6:
                 return None
             frac = (knee[1] - hip[1]) / dy
@@ -144,12 +151,14 @@ class FeatureExtractor:
         return self._joint_angle(prefix, side, pt)
 
     def _extract_aux_displacement(self, landmarks):
+        """Height of the configured displacement landmark in the frame, or None when it is not visible."""
         name = self.displacement_landmark
         if name not in LANDMARK_INDEX or not is_visible(landmarks, name, self.min_visibility):
             return None
         return float(landmarks[LANDMARK_INDEX[name]].y)
 
     def _extract_thigh_lean(self, landmarks, frame_shape):
+        """Thigh angle from vertical, for exercises that are not a three point joint."""
         hip = self._point(landmarks, "hip", frame_shape)
         knee = self._point(landmarks, "knee", frame_shape)
         if hip is None or knee is None:
@@ -160,6 +169,7 @@ class FeatureExtractor:
         return {"timestamp": time.time(), "primary_angle": lean}
 
     def _extract_spine_lean(self, landmarks, frame_shape):
+        """Torso angle from vertical."""
         shoulder = self._point(landmarks, "shoulder", frame_shape)
         hip = self._point(landmarks, "hip", frame_shape)
         if shoulder is None or hip is None:
@@ -171,6 +181,7 @@ class FeatureExtractor:
         return {"timestamp": time.time(), "primary_angle": lean}
 
     def _extract_joint_angle(self, landmarks, frame_shape):
+        """Primary joint angle, plus the right side and the left-right gap when symmetry checking is on."""
         joint_a, joint_b, joint_c = ANGLE_JOINTS[self.angle_joint]
 
         a = self._point(landmarks, joint_a, frame_shape)
