@@ -6,6 +6,7 @@ import { DEFAULT_HISTORY_LIMIT } from '../repositories';
 import type { CalibrationRepository, SessionRepository } from '../repositories';
 import { guard } from './errors';
 
+/** Finished sessions stored under each patient. */
 export class FirestoreSessionRepository implements SessionRepository {
   constructor(private readonly db: Firestore) {}
 
@@ -21,6 +22,7 @@ export class FirestoreSessionRepository implements SessionRepository {
   }
 }
 
+/** Calibration records stored under each patient, one per exercise and camera. */
 export class FirestoreCalibrationRepository implements CalibrationRepository {
   constructor(private readonly db: Firestore) {}
 
