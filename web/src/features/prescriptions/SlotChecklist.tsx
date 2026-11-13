@@ -3,6 +3,7 @@ import type { PrescribedExercise, SlotStatus } from '../../domain';
 import { Card } from '../../ui/display';
 import { Icon } from '../../ui/Icon';
 
+/** Shows which parts of the clinic session template the prescription covers and which are still missing. */
 export function SlotChecklist({ slots, exercises }: { slots: readonly SlotStatus[]; exercises: readonly PrescribedExercise[] }) {
   const stretch = stretchCoverage(exercises);
   const stretchCount = exercises.filter((e) => getExercise(e.exerciseId)?.category === 'stretch').length;
