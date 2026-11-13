@@ -3,9 +3,11 @@ import { DataError } from '../repositories';
 import type { AccountRepository } from '../repositories';
 import { MemoryStore } from './MemoryStore';
 
+/** Account approval for the demo backend. It follows the same rules as the Firebase version. */
 export class MemoryAccountRepository implements AccountRepository {
   constructor(private readonly store: MemoryStore) {}
 
+  /** Listen to accounts. Passwords are removed before they leave the store. */
   watch(onChange: (accounts: UserAccount[]) => void, _onError: (error: Error) => void): () => void {
     const emit = () => onChange([...this.store.users.values()].map(({ password: _password, ...account }) => ({ ...account })));
     emit();
@@ -39,12 +41,14 @@ export class MemoryAccountRepository implements AccountRepository {
     this.decided(user, actorUid);
   }
 
+  /** Find an account or throw when it no longer exists. */
   private mustGet(uid: string) {
     const user = this.store.users.get(uid);
     if (!user) throw new DataError('not_found', 'That account no longer exists');
     return user;
   }
 
+  /** Record a decision and clear the pending request. */
   private decided(user: { requestedRole: Role | null; awaiting: boolean; decidedBy: string | null; decidedAt: number | null }, actorUid: string): void {
     user.requestedRole = null;
     user.awaiting = false;
