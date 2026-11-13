@@ -1,5 +1,6 @@
 import Foundation
 
+/** The ways talking to the hub can fail, each with a message that can be shown to the person as it is. */
 enum HubError: LocalizedError, Equatable {
     case badAddress
     case unreachable
@@ -18,9 +19,11 @@ enum HubError: LocalizedError, Equatable {
     }
 }
 
+/** Turns what a person types into the hub's address. */
 enum HubAddress {
     static let defaultPort = 5000
 
+    /** Accepts a bare host such as jetson.local, adds http and the default port, and drops any path. Returns nil when it is not a usable address. */
     static func normalize(_ text: String) -> URL? {
         var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -35,6 +38,7 @@ enum HubAddress {
     }
 }
 
+/** A small client for the hub's HTTP API. The access key is sent in a header when there is one. */
 struct HubClient: Sendable {
     let baseURL: URL
     let apiKey: String
@@ -46,6 +50,7 @@ struct HubClient: Sendable {
         self.session = session
     }
 
+    /** A session with short timeouts, so a hub that is off fails quickly instead of freezing the screen. */
     static func makeSession() -> URLSession {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 6
@@ -54,6 +59,7 @@ struct HubClient: Sendable {
         return URLSession(configuration: config)
     }
 
+    // The hub uses snake case for its JSON keys and Swift uses camel case, so the coders convert between them
     private static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -66,25 +72,30 @@ struct HubClient: Sendable {
         return encoder
     }()
 
+    /** The body of a heart rate upload. */
     private struct PostBody: Encodable {
         let patientId: String
         let deviceId: String
         let samples: [HeartSample]
     }
 
+    /** Everyone the watch can pick from. */
     func roster() async throws -> Roster {
         try decode(Roster.self, from: try await send("api/watch/roster"))
     }
 
+    /** The latest heart reading the hub holds for a person. */
     func status(patientId: String) async throws -> HeartReading {
         let encoded = patientId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? patientId
         return try decode(StatusResponse.self, from: try await send("api/vitals/\(encoded)")).status
     }
 
+    /** The hub's clock in seconds. */
     func serverTime() async throws -> Double {
         try decode(ServerTime.self, from: try await send("api/time")).t
     }
 
+    /** How far this device's clock is from the hub's, using the middle of the request so travel time cancels out. */
     func clockOffset() async throws -> Double {
         let before = Date().timeIntervalSince1970
         let server = try await serverTime()
@@ -92,17 +103,20 @@ struct HubClient: Sendable {
         return server - (before + after) / 2
     }
 
+    /** Uploads heart rate samples and returns the hub's view of the person's status. */
     func post(samples: [HeartSample], patientId: String, deviceId: String) async throws -> HeartReading {
         let body = try Self.encoder.encode(PostBody(patientId: patientId, deviceId: deviceId, samples: samples))
         return try decode(VitalsResponse.self, from: try await send("api/vitals", method: "POST", body: body)).status
     }
 
+    /** The address of the printable AprilTag image. */
     func tagImageURL(_ tagId: Int, size: Int = 240) -> URL {
         var parts = URLComponents(url: baseURL.appendingPathComponent("api/tags/\(tagId).png"), resolvingAgainstBaseURL: false)
         parts?.queryItems = [URLQueryItem(name: "size", value: String(size))]
         return parts?.url ?? baseURL
     }
 
+    /** Any decoding problem is reported as an invalid response, since the person can do nothing more specific about it. */
     private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         do {
             return try Self.decoder.decode(type, from: data)
@@ -111,6 +125,7 @@ struct HubClient: Sendable {
         }
     }
 
+    /** Sends one request and turns the answer into data or a clear error. */
     private func send(_ path: String, method: String = "GET", body: Data? = nil) async throws -> Data {
         var request = URLRequest(url: baseURL.appendingPathComponent(path))
         request.httpMethod = method
@@ -137,13 +152,16 @@ struct HubClient: Sendable {
     }
 }
 
+/** Helps when a host name does not resolve, by finding the matching IP address. */
 enum HostResolver {
+    /** True when the text is already an IPv4 or IPv6 address. */
     static func isIPAddress(_ host: String) -> Bool {
         var v4 = in_addr()
         var v6 = in6_addr()
         return inet_pton(AF_INET, host, &v4) == 1 || inet_pton(AF_INET6, host, &v6) == 1
     }
 
+    /** Looks up the IPv4 address for a host name, or nil when it cannot be found. */
     static func ipv4(for host: String) -> String? {
         var hints = addrinfo()
         hints.ai_family = AF_INET
@@ -156,6 +174,7 @@ enum HostResolver {
         return String(cString: buffer)
     }
 
+    /** The same address with the host name swapped for its IP address, used as a second option when the name fails. */
     static func fallbackURL(for url: URL) -> URL? {
         guard let host = url.host, !isIPAddress(host), let address = ipv4(for: host) else { return nil }
         var parts = URLComponents(url: url, resolvingAgainstBaseURL: false)
