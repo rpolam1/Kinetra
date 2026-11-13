@@ -1,3 +1,4 @@
+/** Tests for route matching and for how the hub settings are saved in the browser. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { matchRoute } from '../src/app/router';
@@ -5,6 +6,7 @@ import { ROUTES } from '../src/App';
 import { loadHubSettings, saveHubSettings } from '../src/app/settingsStorage';
 import type { SettingsStorage } from '../src/app/settingsStorage';
 
+/** An in memory stand in for browser storage that also exposes what was stored. */
 function fakeStorage(): SettingsStorage & { bag: Map<string, string> } {
   const bag = new Map<string, string>();
   return {
