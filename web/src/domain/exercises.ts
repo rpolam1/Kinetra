@@ -6,6 +6,7 @@ import type {
   TrackingMode,
 } from './types';
 
+/** An exercise as it is written in config/exercises.json. */
 interface RawExercise {
   name: string;
   category: ExerciseCategory;
@@ -17,6 +18,7 @@ interface RawExercise {
   default_seconds?: number;
 }
 
+/** The order categories are shown in. */
 export const CATEGORY_ORDER: readonly ExerciseCategory[] = [
   'mobility',
   'squat_lunge',
@@ -48,6 +50,7 @@ export const TRACKING_LABELS: Readonly<Record<TrackingMode, string>> = {
   manual: 'Instructor logs',
 };
 
+/** Convert a library entry from snake case to the shape the app uses. */
 export function toDefinition(id: string, raw: RawExercise): ExerciseDefinition {
   return {
     id,
@@ -62,30 +65,36 @@ export function toDefinition(id: string, raw: RawExercise): ExerciseDefinition {
   };
 }
 
+/** Convert the whole library file. */
 export function buildLibrary(raw: Record<string, RawExercise>): readonly ExerciseDefinition[] {
   return Object.entries(raw).map(([id, entry]) => toDefinition(id, entry));
 }
 
+/** The exercise library. The vision code reads the same file, so both sides use the same ids. */
 export const EXERCISES: readonly ExerciseDefinition[] = buildLibrary(
   rawLibrary as unknown as Record<string, RawExercise>,
 );
 
 const BY_ID: ReadonlyMap<string, ExerciseDefinition> = new Map(EXERCISES.map((e) => [e.id, e]));
 
+/** Look up an exercise, or undefined when the id is unknown. */
 export function getExercise(id: string): ExerciseDefinition | undefined {
   return BY_ID.get(id);
 }
 
+/** Look up an exercise and throw when the id is unknown. */
 export function requireExercise(id: string): ExerciseDefinition {
   const found = BY_ID.get(id);
   if (!found) throw new Error(`Unknown exercise id: ${id}`);
   return found;
 }
 
+/** Every exercise in one category. */
 export function exercisesInCategory(category: ExerciseCategory): ExerciseDefinition[] {
   return EXERCISES.filter((e) => e.category === category);
 }
 
+/** Exercises whose name or equipment contains the text, optionally limited to one category. */
 export function searchExercises(query: string, category?: ExerciseCategory): ExerciseDefinition[] {
   const q = query.trim().toLowerCase();
   return EXERCISES.filter(
@@ -95,6 +104,7 @@ export function searchExercises(query: string, category?: ExerciseCategory): Exe
   );
 }
 
+/** Only form scored exercises need a calibration, because they compare each rep with a template. */
 export function needsCalibration(exercise: ExerciseDefinition): boolean {
   return exercise.tracking === 'scored';
 }
