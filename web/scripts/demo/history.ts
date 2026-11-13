@@ -4,18 +4,24 @@ import type { Arc, DemoPerson, Shape } from './cast';
 import { clamp, createRandom, jitter, lerp, roundTo } from './random';
 import type { Random } from './random';
 
+// Time constants in milliseconds
 const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
+// Days of the week used for sessions, as offsets from the Monday that starts the week
 const SESSION_DAYS = [1, 3, 5];
+// Exercises where the longest hold is the thing that improves
 const HOLD_EXERCISES = new Set(['wall_sit', 'plank', 'side_plank']);
+// One heart rate sample is assumed about every four seconds
 const HR_SECONDS_PER_SAMPLE = 4;
 
+/** The settings for generating a history. */
 export interface HistoryOptions {
   weeks: number;
   now: number;
   seed: number;
 }
 
+/** Turns a straight line of progress into a curve for the patient's story, such as a fast start or a plateau. */
 function shaped(shape: Shape, p: number): number {
   switch (shape) {
     case 'fast':
@@ -31,6 +37,7 @@ function shaped(shape: Shape, p: number): number {
   }
 }
 
+/** The heart rate zone for a person, from their own prescription. */
 function zoneFor(person: DemoPerson) {
   const cardio = person.content.cardio;
   return heartRateZone({
@@ -42,6 +49,7 @@ function zoneFor(person: DemoPerson) {
   });
 }
 
+/** Makes the heart summary for one session. People on beta blockers get no zone times, as in the real app. */
 function heartFor(person: DemoPerson, p: number, seconds: number, random: Random): SessionHeart | null {
   const zone = zoneFor(person);
   if (!zone) return null;
@@ -74,6 +82,7 @@ function heartFor(person: DemoPerson, p: number, seconds: number, random: Random
   };
 }
 
+/** Makes the result for one exercise in a session. Timed holds, count only and scored exercises each fill in different fields. */
 function resultFor(planned: PrescribedExercise, p: number, arc: Arc, heart: SessionHeart | null, random: Random): ExerciseResult {
   const def = requireExercise(planned.exerciseId);
   const avgHr = heart ? Math.round(heart.avgBpm + jitter(random, 5)) : null;
@@ -159,6 +168,7 @@ function resultFor(planned: PrescribedExercise, p: number, arc: Arc, heart: Sess
   };
 }
 
+/** Makes every session for one person across the weeks. The progress p runs from 0 to 1 over the whole history. */
 export function buildSessions(person: DemoPerson, patientId: string, options: HistoryOptions, index: number): PatientSession[] {
   const random = createRandom(options.seed + index * 7919);
   const arc = person.arc;
@@ -170,6 +180,7 @@ export function buildSessions(person: DemoPerson, patientId: string, options: Hi
   for (let week = 0; week < options.weeks; week += 1) {
     days.forEach((day, slot) => {
       const startedAt = first + week * WEEK_MS + day * DAY_MS + (14 + Math.floor(random() * 3)) * 3_600_000 + Math.floor(random() * 50) * 60_000;
+      // Sessions in the future or very recent, and missed days, are left out
       if (startedAt > options.now - 3 * 3_600_000 || random() < arc.miss) return;
       const p = shaped(arc.shape, clamp((week + slot / days.length) / Math.max(1, options.weeks - 1), 0, 1));
       const seconds = Math.round((arc.minutes + jitter(random, 4)) * 60);
