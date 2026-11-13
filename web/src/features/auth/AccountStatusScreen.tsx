@@ -20,12 +20,14 @@ const LOOK = {
   approved: { icon: 'check', title: 'You are approved', ring: 'text-emerald-400' },
 } as const satisfies Record<string, Look>;
 
+/** Shown to someone who is signed in but not approved yet, or who was declined or switched off. */
 export function AccountStatusScreen() {
   const { user, signOut } = useAuth();
   const ring = useRef<HTMLSpanElement>(null);
   const status = user?.status ?? 'pending';
   const look = LOOK[status];
 
+  // A slow pulse around the icon shows that the request is still waiting
   useEffect(() => {
     const el = ring.current;
     if (!el || status !== 'pending' || !motionAllowed()) return undefined;
