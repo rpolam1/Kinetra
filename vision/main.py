@@ -1,3 +1,4 @@
+"""Command line tool to calibrate one patient and exercise on a single webcam, or to score live without the camera client."""
 import argparse
 import json
 import time
@@ -54,6 +55,7 @@ def _overlay_rep_counts(frame, good_count, bad_count, total_count):
 
 def run_calibration(cap, pose_extractor, feature_extractor, template_manager,
                      patient_id, exercise_name, exercise_config, num_reps=5, link=None):
+    """Capture num_reps reps from the webcam and save them as a template. Warnings about the calibration are printed, and the template is uploaded to the hub when one is available."""
     print(f"Calibration mode: perform {num_reps} good, CONSISTENT reps of '{exercise_name}'.")
     print("Make sure your FULL BODY is visible (head to feet). Start from a still, "
           "relaxed position and pause briefly at the start.")
@@ -106,6 +108,7 @@ def run_calibration(cap, pose_extractor, feature_extractor, template_manager,
 
 
 def _print_debug_table(details):
+    """Per-metric comparison for one rep. Metrics outside the tolerance are marked with an arrow."""
     print(f"    {'metric':26s} {'rep':>9s} {'calib':>9s} {'tol':>8s} {'dev':>6s} {'w':>4s}")
     for d in details[:12]:
         flag = " <--" if d["dev"] > 1 else ""
@@ -114,6 +117,7 @@ def _print_debug_table(details):
 
 
 def run_live_tracking(cap, pose_extractor, feature_extractor, judge):
+    """Score reps live from the webcam until q is pressed, drawing the results on screen."""
     print("Live tracking started. Press 'q' to stop.")
     last_judgment_text = ""
     last_gate_text = []
@@ -166,6 +170,7 @@ def run_live_tracking(cap, pose_extractor, feature_extractor, judge):
 
 
 def main():
+    """Parse the arguments, load the template if there is one and run calibration or live tracking."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--patient", required=True, help="Patient ID")
     parser.add_argument("--exercise", required=True,
