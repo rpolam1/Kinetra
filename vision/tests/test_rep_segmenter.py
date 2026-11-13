@@ -1,3 +1,4 @@
+"""Tests for splitting a stream of joint angles into reps, including noise, spikes, partial returns and holds."""
 import math
 import os
 import random
@@ -11,6 +12,7 @@ FPS = 20
 
 def stream(reps, rest=175.0, noise=2.5, seed=0, lead=1.0, tail=1.0, spikes=0, fps=FPS,
            start_mid=False):
+    """Build angle samples for a list of reps. Each rep gives its peak angle and duration, and may add a hold, a bounce or a partial return."""
     rng = random.Random(seed)
     vals = []
 
@@ -46,6 +48,7 @@ def stream(reps, rest=175.0, noise=2.5, seed=0, lead=1.0, tail=1.0, spikes=0, fp
 
 
 def run(feats, **kw):
+    """Feed samples to a new segmenter and return it with the reps it finished."""
     seg = RepSegmenter(**kw)
     emitted = []
     for f in feats:
@@ -55,6 +58,7 @@ def run(feats, **kw):
 
 
 def reps_of(peak, n, dur=2.0, pause=0.6, **kw):
+    """A list of n identical reps."""
     return [dict(peak=peak, dur=dur, pause_after=pause, **kw) for _ in range(n)]
 
 
