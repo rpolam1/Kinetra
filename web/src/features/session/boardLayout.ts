@@ -1,3 +1,4 @@
+/** The result of planning the grid. */
 export interface GridPlan {
   cols: number;
   rows: number;
@@ -5,11 +6,15 @@ export interface GridPlan {
   tileHeight: number;
 }
 
+// The shape every tile aims for, as width divided by height
 export const TILE_ASPECT = 1.7;
+// Caps so a single person on a large TV does not get an enormous tile
 const MAX_TILE_WIDTH = 760;
 const MAX_TILE_HEIGHT = 440;
+// More people than this are split over several pages
 export const MAX_PER_PAGE = 30;
 
+/** Picks the number of columns that gives the biggest tiles, and returns the tile size. A grid with fewer empty cells wins a tie. */
 export function planGrid(count: number, width: number, height: number, gap: number): GridPlan {
   const n = Math.max(1, Math.floor(count));
   const w = Math.max(1, width);
@@ -37,6 +42,7 @@ export function planGrid(count: number, width: number, height: number, gap: numb
   };
 }
 
+/** Splits people into pages of about equal size, so the last page is not left with one person. */
 export function paginate<T>(items: readonly T[], perPage: number = MAX_PER_PAGE): T[][] {
   if (items.length === 0) return [[]];
   const pages = Math.ceil(items.length / perPage);
@@ -46,8 +52,10 @@ export function paginate<T>(items: readonly T[], perPage: number = MAX_PER_PAGE)
   return out;
 }
 
+/** How much detail a tile shows. More people means smaller tiles, so less is shown. */
 export type Density = 'roomy' | 'comfy' | 'compact' | 'dense';
 
+/** Chooses the detail level from how many tiles are on screen. */
 export function densityFor(visibleCount: number): Density {
   if (visibleCount <= 6) return 'roomy';
   if (visibleCount <= 12) return 'comfy';
