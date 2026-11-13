@@ -1,3 +1,4 @@
+"""Live tracking helpers. A status light per patient, a record of who each camera can see and a bus that streams updates to the web app."""
 import json
 import threading
 import time
@@ -12,6 +13,7 @@ LIGHTS = ("not_detected", "resting", "on_track", "drifting", "needs_help")
 
 
 def compute_light(present, now, last_rep_at, recent_scores, holding=False, hold_seconds=0.0):
+    """Choose the status light and a short message for one patient from their recent reps and whether a camera can see them."""
     if not present:
         return "not_detected", "Not seen by any camera"
     if holding:
@@ -23,6 +25,7 @@ def compute_light(present, now, last_rep_at, recent_scores, holding=False, hold_
         return "on_track", "Counting reps (no form score for this exercise)"
     flagged = sum(1 for s in scores if s < 50)
     average = sum(scores) / len(scores)
+    # Two flagged reps in the window or a low average means the person needs help
     if average < 50 or flagged >= 2:
         return "needs_help", f"Form is poor (recent average {average:.0f})"
     if average < 80 or flagged == 1:
@@ -32,18 +35,22 @@ def compute_light(present, now, last_rep_at, recent_scores, holding=False, hold_
 
 
 class PresenceTracker:
+    """Remembers who each camera reported seeing. Reports older than the timeout are ignored."""
 
     def __init__(self, ttl=PRESENCE_TIMEOUT):
         self.ttl = ttl
         self._by_camera = {}
 
     def update(self, camera_id, people, now):
+        """Replace what one camera currently sees."""
         self._by_camera[camera_id] = {"t": now, "people": list(people)}
 
     def _fresh(self, now):
+        """Reports from cameras that were heard from recently."""
         return {cam: v for cam, v in self._by_camera.items() if now - v["t"] <= self.ttl}
 
     def patients(self, now):
+        """Patients in view, with the cameras that see them and any hold in progress."""
         out = {}
         for cam, v in self._fresh(now).items():
             for person in v["people"]:
@@ -61,16 +68,19 @@ class PresenceTracker:
         return out
 
     def anonymous(self, now):
+        """People in view who have no patient id."""
         return [{"camera_id": cam, "track_key": p.get("track_key"), "last_seen": v["t"]}
                 for cam, v in sorted(self._fresh(now).items())
                 for p in v["people"] if not p.get("patient_id")]
 
     def cameras(self, now):
+        """When each active camera last reported."""
         return {cam: v["t"] for cam, v in self._fresh(now).items()}
 
 
 
 class LiveBus:
+    """In-memory event bus for server sent events. Keeps a bounded history so a slow reader can catch up."""
 
     def __init__(self, history=1000):
         self._cond = threading.Condition()
@@ -79,10 +89,12 @@ class LiveBus:
 
     @property
     def seq(self):
+        """Number of the latest event."""
         with self._cond:
             return self._seq
 
     def publish(self, topic, data, key=None):
+        """Add an event and wake up any readers. Returns its sequence number."""
         with self._cond:
             self._seq += 1
             self._events.append((self._seq, topic, key, data))
@@ -90,6 +102,7 @@ class LiveBus:
             return self._seq
 
     def _next(self, cursor, topics, key, timeout):
+        """Wait up to timeout seconds for events after the cursor that match the topics and key."""
         deadline = time.monotonic() + timeout
         with self._cond:
             while True:
@@ -105,6 +118,7 @@ class LiveBus:
                 self._cond.wait(remaining)
 
     def stream(self, topics, key=None, initial=(), heartbeat=15.0, stop=None):
+        """Yield server sent event text for the given topics. Sends a keep-alive line when nothing happens within the heartbeat time."""
         topics = set(topics)
         cursor = self.seq
         yield ": connected\n\n"
@@ -124,4 +138,5 @@ class LiveBus:
 
     @staticmethod
     def _format(seq, topic, data):
+        """Format one event in the server sent event wire format."""
         return f"id: {seq}\nevent: {topic}\ndata: {json.dumps(data, separators=(',', ':'))}\n\n"
