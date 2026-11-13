@@ -7,10 +7,12 @@ import { Button } from '../../ui/Button';
 import { Alert } from '../../ui/display';
 import { TextField } from '../../ui/fields';
 
+/** A readable message for whatever was thrown while signing in. */
 function errorText(e: unknown): string {
   return e instanceof Error ? e.message : 'Could not sign in';
 }
 
+/** Email and password form. With the demo backend it also offers a one click sign in for each demo role. */
 export function SignInForm({ onSwitch }: { onSwitch: () => void }) {
   const { signIn, demo } = useAuth();
   const [email, setEmail] = useState('');
