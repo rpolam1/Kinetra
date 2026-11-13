@@ -1,3 +1,4 @@
+/** Tests for sign up, admin approval, the TV board layout and the time ago text. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { MemoryAccountRepository } from '../src/data/memory/MemoryAccountRepository';
@@ -9,6 +10,7 @@ import type { UserAccount } from '../src/domain';
 import { MAX_PER_PAGE, densityFor, paginate, planGrid } from '../src/features/session/boardLayout';
 import { timeAgo } from '../src/ui/format';
 
+/** An account with defaults for every field, so a test only names what it cares about. */
 function account(extra: Partial<UserAccount>): UserAccount {
   return {
     uid: 'u',
@@ -25,6 +27,7 @@ function account(extra: Partial<UserAccount>): UserAccount {
   };
 }
 
+/** A sign up form that passes validation, used as the starting point for the failing cases. */
 const valid = { displayName: 'Ana Kowalski', email: 'ana@clinic.test', password: 'longenough', requestedRole: 'instructor' as const };
 
 describe('accounts: sign-up validation', () => {
