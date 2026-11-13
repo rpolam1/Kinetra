@@ -11,6 +11,7 @@ import type {
 import { openStream } from './sse';
 import type { SseMessage, StreamState } from './sse';
 
+/** An error from talking to the hub. The status is null when the hub could not be reached. */
 export class HubError extends Error {
   readonly status: number | null;
   constructor(message: string, status: number | null) {
@@ -41,6 +42,7 @@ export interface HubApiOptions {
   fetchImpl?: typeof fetch;
 }
 
+/** Client for the hub's HTTP API. The address is blank when the hub serves the app itself, so requests stay on the same origin. */
 export class HubApi {
   private readonly baseUrl: string;
   private readonly apiKey: () => string | null;
@@ -54,6 +56,7 @@ export class HubApi {
     this.fetchImpl = options.fetchImpl ?? ((...args) => fetch(...args));
   }
 
+  /** Address of a printable tag image. It is a plain URL because an image tag cannot send an API key, and the hub allows these requests without one. */
   tagImageUrl(tagId: number, sizePx = 600): string {
     return `${this.baseUrl}/api/tags/${tagId}.png?size=${sizePx}`;
   }
@@ -79,6 +82,7 @@ export class HubApi {
     await this.request('DELETE', `/api/tags/${tagId}`);
   }
 
+  /** Replace every tag on the hub with the registry. The hub identifies patients by their code. */
   async replaceTags(registry: TagRegistry): Promise<number> {
     const tags: Record<string, HubTagEntry> = {};
     for (const [id, entry] of Object.entries(registry)) {
@@ -126,6 +130,7 @@ export class HubApi {
   }
 
   decideRep(jobId: string, index: number, decision: Exclude<RepDecision, 'pending'>): Promise<CalibrationJob> {
+    // The hub's words for the decision are keep and discard
     const verb = decision === 'kept' ? 'keep' : 'discard';
     return this.request('POST', `/api/calibration/${encodeURIComponent(jobId)}/reps/${index}/decision`, { decision: verb });
   }
@@ -138,6 +143,7 @@ export class HubApi {
     return this.request('POST', `/api/calibration/${encodeURIComponent(jobId)}/cancel`);
   }
 
+  /** Listen to live updates. Returns a function that stops listening. */
   subscribe(
     topics: readonly ('status' | 'calibration' | 'skeleton')[],
     handlers: { onMessage: (message: SseMessage) => void; onState?: (state: StreamState) => void },
@@ -159,6 +165,7 @@ export class HubApi {
     });
   }
 
+  /** Send a request with a timeout and turn failures into a HubError with a readable message. */
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers['Content-Type'] = 'application/json';
