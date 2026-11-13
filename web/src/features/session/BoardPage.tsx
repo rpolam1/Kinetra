@@ -12,9 +12,12 @@ import { MAX_PER_PAGE, densityFor, paginate, planGrid } from './boardLayout';
 import type { Density } from './boardLayout';
 import { prescriptionLine, progressFraction, progressLabel } from './roster';
 
+// The space between tiles in pixels
 const GAP = 14;
+// How long each page of people stays up when there are too many for one screen
 const PAGE_SECONDS = 12;
 
+/** Tracks the size of an element so the tile grid can be planned from real pixels. */
 function useElementSize<T extends HTMLElement>(): [RefObject<T | null>, { width: number; height: number }] {
   const ref = useRef<T>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -34,6 +37,7 @@ function useElementSize<T extends HTMLElement>(): [RefObject<T | null>, { width:
   return [ref, size];
 }
 
+/** The current time for the board header. It refreshes often enough that the minute never looks stale. */
 function useClock(): string {
   const format = () => new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const [time, setTime] = useState(format);
@@ -44,6 +48,7 @@ function useClock(): string {
   return time;
 }
 
+/** The full screen board for the clinic TV. It needs no login and shows every participant's exercise and progress. */
 export function BoardPage() {
   const { snapshot, state } = useLiveSnapshot();
   const root = useRef<HTMLElement>(null);
@@ -52,6 +57,7 @@ export function BoardPage() {
   useRise(root);
 
   const active = snapshot?.session?.active === true;
+  // Nobody is shown until a session is running, so an old snapshot never leaves names on the screen
   const people = useMemo(() => (active ? snapshot!.participants : []), [active, snapshot]);
   const pages = useMemo(() => paginate(people, MAX_PER_PAGE), [people]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -66,6 +72,7 @@ export function BoardPage() {
     return () => window.clearInterval(id);
   }, [pages.length]);
 
+  // The grid is planned from the real size of the stage so tiles fill it without scrolling
   const plan = useMemo(() => planGrid(page.length || 1, size.width, size.height, GAP), [page.length, size.width, size.height]);
   const density = densityFor(page.length);
   const ready = size.width > 0 && size.height > 0;
@@ -128,6 +135,7 @@ export function BoardPage() {
   );
 }
 
+/** One person's tile. The sizes are in container units so the text scales with the tile. */
 function BoardTile({ person, width, height, density }: { person: LiveParticipant; width: number; height: number; density: Density }) {
   const { exercise, progress } = person;
   const tile = useRef<HTMLLIElement>(null);
