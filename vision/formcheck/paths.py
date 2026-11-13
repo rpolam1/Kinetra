@@ -1,3 +1,4 @@
+"""Locations of bundled files and user data, for both a source checkout and a packaged executable."""
 import os
 import sys
 
