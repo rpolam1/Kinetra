@@ -1,5 +1,6 @@
 import SwiftUI
 
+/** Picks the watch screen from the current phase. */
 struct WatchRootView: View {
     @Environment(WatchModel.self) private var model
 
@@ -24,6 +25,7 @@ struct WatchRootView: View {
     }
 }
 
+/** Tells the person to finish setup on the iPhone. */
 struct SetupNeededView: View {
     var body: some View {
         VStack(spacing: 8) {
@@ -41,6 +43,7 @@ struct SetupNeededView: View {
     }
 }
 
+/** The start screen with the person's name and tag. */
 struct ReadyView: View {
     @Environment(WatchModel.self) private var model
 
@@ -78,6 +81,7 @@ struct ReadyView: View {
     }
 }
 
+/** A ring around the heart rate. The thick shaded arc is the target zone and the thin arc is where the heart rate sits. */
 struct HeartRing: View {
     let bpm: Int?
     let reading: HeartReading
@@ -121,6 +125,7 @@ struct HeartRing: View {
     }
 }
 
+/** The screen during a workout. */
 struct RunningView: View {
     @Environment(WatchModel.self) private var model
 
@@ -169,6 +174,7 @@ struct RunningView: View {
     }
 }
 
+/** The totals shown when the workout ends. */
 struct SummaryView: View {
     @Environment(WatchModel.self) private var model
 
@@ -200,6 +206,7 @@ struct SummaryView: View {
         .navigationBarBackButtonHidden(true)
     }
 
+    /** One line with a label on the left and the value on the right. */
     private func stat(_ title: String, _ value: String) -> some View {
         HStack {
             Text(title).font(.footnote).foregroundStyle(.secondary)
@@ -209,6 +216,7 @@ struct SummaryView: View {
     }
 }
 
+/** The list of people shown when the watch has to be set to someone. */
 struct WatchPersonPicker: View {
     @Environment(WatchModel.self) private var model
 
