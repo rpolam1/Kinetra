@@ -1,3 +1,4 @@
+"""Tests for finding a working camera when several are connected."""
 import os
 import sys
 
@@ -6,6 +7,7 @@ from client import open_camera
 
 
 class FakeCap:
+    """A camera that may open and may or may not deliver frames."""
     def __init__(self, opens, delivers):
         self.opens, self.delivers, self.released = opens, delivers, False
 
@@ -20,6 +22,7 @@ class FakeCap:
 
 
 class FakeCv2:
+    """Stands in for the cv2 module and records which camera numbers were tried."""
     def __init__(self, cams):
         self.cams, self.tried = cams, []
 
