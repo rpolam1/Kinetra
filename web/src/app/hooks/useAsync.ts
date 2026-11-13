@@ -8,6 +8,7 @@ export interface AsyncState<T> {
   reload: () => void;
 }
 
+/** Run async work whenever the dependencies change and track loading and error state. A slow earlier call cannot overwrite the result of a newer one. */
 export function useAsync<T>(work: () => Promise<T>, deps: DependencyList): AsyncState<T> {
   const [state, setState] = useState<{ data: T | null; error: Error | null; loading: boolean }>({
     data: null,
@@ -15,6 +16,7 @@ export function useAsync<T>(work: () => Promise<T>, deps: DependencyList): Async
     loading: true,
   });
   const [tick, setTick] = useState(0);
+  // Counts calls so a late response from an old call can be ignored
   const latest = useRef(0);
 
   useEffect(() => {
