@@ -4,6 +4,7 @@ import { Alert, Card } from '../../ui/display';
 import { NumberField, SelectField, TextField } from '../../ui/fields';
 import { Icon } from '../../ui/Icon';
 
+// The machine options a prescription can name for the cardio block
 const MACHINES: { value: CardioMachine; label: string }[] = [
   { value: 'treadmill', label: 'Treadmill' },
   { value: 'recumbent_bike', label: 'Recumbent bike' },
@@ -11,6 +12,7 @@ const MACHINES: { value: CardioMachine; label: string }[] = [
   { value: 'other', label: 'Other' },
 ];
 
+/** What the cardio form needs. The patient fields are only the ones used for the heart rate zone. */
 interface CardioFormProps {
   cardio: CardioBlock;
   patient: Pick<Patient, 'dateOfBirth' | 'restingHr' | 'maxHr' | 'medications'>;
@@ -18,7 +20,9 @@ interface CardioFormProps {
   onChange: (patch: Partial<CardioBlock>) => void;
 }
 
+/** The cardio block of a prescription, with the target heart rate worked out from the patient's details. */
 export function CardioForm({ cardio, patient, disabled, onChange }: CardioFormProps) {
+  // The zone is recalculated from the prescribed intensity so changing the percentages updates the target straight away
   const zone = heartRateZone({
     age: computeAge(patient.dateOfBirth),
     restingHr: patient.restingHr,
