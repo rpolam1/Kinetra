@@ -10,6 +10,7 @@ interface ProgressBarProps {
   heightClassName?: string;
 }
 
+/** A bar that fills to a value between 0 and 1. The value is clamped so a bad number cannot overflow the track. */
 export function ProgressBar({ value, label, className = '', trackClassName = 'bg-slate-200', barClassName = 'bg-teal-600', heightClassName = 'h-1.5' }: ProgressBarProps) {
   const bar = useRef<HTMLDivElement>(null);
   const pct = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)) * 100;
