@@ -1,3 +1,4 @@
+"""Runs the MediaPipe pose model on camera frames and returns the landmarks it finds."""
 import os
 import urllib.request
 
@@ -17,6 +18,7 @@ _MODEL_URL = (
 
 
 def _ensure_model_downloaded():
+    """Download the pose model if it is not already on disk."""
     if not os.path.exists(_MODEL_PATH):
         print("Downloading pose landmark model (one-time setup, ~5MB)...")
         urllib.request.urlretrieve(_MODEL_URL, _MODEL_PATH)
@@ -24,11 +26,13 @@ def _ensure_model_downloaded():
 
 
 def _world_at(result, index):
+    """World landmarks for the pose at index, or None when MediaPipe returned none."""
     world = getattr(result, "pose_world_landmarks", None) or []
     return world[index] if index < len(world) else None
 
 
 class PoseExtractor:
+    """Runs the MediaPipe pose landmarker on frames and returns landmarks with 3D world coordinates attached."""
     def __init__(self, min_detection_confidence=0.5, min_tracking_confidence=0.5,
                  max_stale_frames=2, num_poses=1):
         _ensure_model_downloaded()
@@ -48,6 +52,7 @@ class PoseExtractor:
         self._stale_count = 0
 
     def process(self, frame_bgr):
+        """Detect one person and return their landmarks. A short run of missed frames reuses the last result."""
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
         result = self._landmarker.detect(mp_image)
@@ -66,12 +71,14 @@ class PoseExtractor:
         return None
 
     def process_all(self, frame_bgr):
+        """Detect every person in the frame, one landmark list each."""
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
         result = self._landmarker.detect(mp_image)
         return [attach_world(lms, _world_at(result, i)) for i, lms in enumerate(result.pose_landmarks or [])]
 
     def draw_person(self, frame_bgr, landmarks, color=(0, 255, 0), label=None):
+        """Draw a person's joints and an optional label above them. Joints below 0.5 visibility are skipped."""
         if landmarks is None:
             return frame_bgr
         h, w = frame_bgr.shape[:2]
@@ -89,6 +96,7 @@ class PoseExtractor:
         return frame_bgr
 
     def draw(self, frame_bgr, landmarks_result):
+        """Draw all joints, green when visible enough and red when uncertain."""
         if landmarks_result is not None:
             h, w = frame_bgr.shape[:2]
             for lm in landmarks_result:
