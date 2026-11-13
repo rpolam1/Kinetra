@@ -1,3 +1,4 @@
+"""Splits a stream of joint-angle samples into reps, or tracks how long a position is held. A rep is a move away from the resting angle that reaches a minimum range and comes back."""
 from collections import deque
 
 import numpy as np
@@ -11,13 +12,16 @@ KEEP_AFTER_TRIM = 200
 
 
 def _median3(vals):
+    """Median of the last three values, which removes single-frame spikes."""
     last = sorted(vals[-3:])
     return last[len(last) // 2]
 
+# Hold angles are averaged over this window so one noisy frame does not break a hold
 HOLD_SMOOTH_SECONDS = 0.8
 
 
 class RepSegmenter:
+    """Detects reps from the primary angle with idle, out and back states. In hold mode it measures how long the angle stays steady while away from the rest position."""
     def __init__(self, mode="rep_based", min_rep_seconds=0.3, min_angle_range_deg=15.0,
                  smoothing_window=3, max_rep_seconds=20.0, rest_direction=None,
                  start_threshold_deg=None, rest_angle=None):
@@ -52,6 +56,7 @@ class RepSegmenter:
         self._rest_ref = self.rest_angle if self._init_orientation is not None else None
 
     def add_sample(self, feature):
+        """Add one frame's feature. The angle is despiked and smoothed first, then passed to the rep state machine or the hold tracker depending on the mode."""
         if feature is None:
             return
 
@@ -95,6 +100,7 @@ class RepSegmenter:
 
     @property
     def _delta(self):
+        """Movement needed to count as leaving rest. Scales with the measured jitter, within limits, and never exceeds 60% of the minimum range."""
         if self.fixed_delta is not None:
             return float(self.fixed_delta)
         d = min(max(4.0 * self._noise, 6.0), 14.0)
@@ -102,6 +108,7 @@ class RepSegmenter:
 
     @property
     def _min_rom_eff(self):
+        """Minimum range for a rep, raised when the signal is noisy so jitter is not counted as reps."""
         return max(self.min_rom, 8.0 * self._noise)
 
     def _ang(self, i):
@@ -117,6 +124,7 @@ class RepSegmenter:
         self._maybe_trim()
 
     def _step_idle(self, i, a):
+        """Waiting at rest. Leaves idle when the angle moves a delta away from the recent window, and keeps a running jitter estimate while resting. Until the direction of movement is known, a steady dwell is needed first."""
         win = self._win
         if len(win) >= 6:
             lo, hi = min(win), max(win)
@@ -140,6 +148,7 @@ class RepSegmenter:
         win.append(a)
 
     def _begin(self, i, d, start_val):
+        """Start a rep. Walks back to where the movement actually began and keeps a few extra samples before it."""
         delta = self._delta
         j = i
         while j > 0 and (i - j) < 60 and d * (self._ang(j - 1) - start_val) > 0.25 * delta:
@@ -159,6 +168,7 @@ class RepSegmenter:
         return self._d_cur * (a - self._start_val)
 
     def _abort(self, i):
+        """Drop a motion that never became a rep and count it for diagnostics."""
         self.rejected_count += 1
         self._reseed(i)
         self._state = "idle"
@@ -169,6 +179,7 @@ class RepSegmenter:
             self._win.append(self._ang(k))
 
     def _step_out(self, i, a):
+        """Moving away from rest. Tracks the peak, switches to back once the angle has returned by 30% of the peak or a delta, and gives up when the rep takes too long or never gets big enough."""
         delta = self._delta
         exc = self._exc(a)
         if exc > self._peak:
@@ -185,6 +196,7 @@ class RepSegmenter:
                 self._abort(i)  # jitter / too-small motion, never became a rep
 
     def _step_back(self, i, a):
+        """Returning to rest. A rep completes when the angle is back within 25% of the peak, or counts as a partial return if it stalls below 60%. A new push outward continues the same rep."""
         delta = self._delta
         exc = self._exc(a)
         self._back_min = min(self._back_min, exc)
@@ -201,6 +213,7 @@ class RepSegmenter:
             return self._complete(i, partial=True)
 
     def _stationary(self, i, seconds):
+        """True when the angle has stayed within a small band for the given number of seconds."""
         t_now = self._ts(i)
         vals = []
         k = i
@@ -210,6 +223,7 @@ class RepSegmenter:
         return len(vals) >= 4 and (max(vals) - min(vals)) <= 0.8 * self._delta
 
     def _complete(self, i, partial):
+        """Queue a finished rep. It is emitted a few samples later so the trailing context is included."""
         end_abs = self._base + i
         self._pending.append({
             "onset_abs": self._onset_abs, "end_abs": end_abs, "frames_left": POST_ROLL,
@@ -232,6 +246,7 @@ class RepSegmenter:
             self._emit(p)
 
     def _emit(self, p):
+        """Cut the rep's samples out of the buffer, and drop it if it was too short."""
         lo = max(p["onset_abs"] - self._base, 0)
         hi = min(p["end_abs"] - self._base + 1 + POST_ROLL, len(self._buffer))
         samples = self._buffer[lo:hi]
@@ -252,6 +267,7 @@ class RepSegmenter:
         self._completed.append((samples, meta))
 
     def _maybe_trim(self):
+        """Cap the buffer length, but only while idle so a rep in progress is not cut."""
         if self._state == "idle" and not self._pending and len(self._buffer) > MAX_BUFFER:
             drop = len(self._buffer) - KEEP_AFTER_TRIM
             self._buffer = self._buffer[drop:]
@@ -262,10 +278,12 @@ class RepSegmenter:
         return {"idle": "rest", "out": "out", "back": "back"}[self._state]
 
     def orientation_hint(self, d, force=False):
+        """Set which way the angle moves out from rest. Ignored when it is already known, unless forced."""
         if d in (-1, +1) and (force or self._d is None):
             self._d = d
 
     def extract_completed_reps_with_meta(self, flush_pending=False):
+        """Return the reps finished since the last call, each with its samples and metadata. With flush_pending set, a rep that is part-way back is closed as a partial return and waiting reps are released at once."""
         if self.mode != "rep_based":
             return []
         if flush_pending:
@@ -285,6 +303,7 @@ class RepSegmenter:
         return [s for s, _ in self.extract_completed_reps_with_meta(flush_pending)]
 
     def _track_hold(self, t, angle, tolerance_deg=15.0):
+        """Update the hold tracker. A hold is a stretch where the smoothed angle stays inside the tolerance band. The rest reference follows the most extreme angle seen in the rest direction."""
         self._hold_win.append((t, angle))
         while self._hold_win and t - self._hold_win[0][0] > HOLD_SMOOTH_SECONDS:
             self._hold_win.popleft()
@@ -312,6 +331,7 @@ class RepSegmenter:
         return True, held
 
     def check_hold(self, target_duration_sec, tolerance_deg=15):
+        """True once the hold has lasted target_duration_sec, along with the seconds held so far. Only used in hold mode."""
         if self.mode != "hold_duration":
             return False, 0.0
         holding, held = self.hold_state()
