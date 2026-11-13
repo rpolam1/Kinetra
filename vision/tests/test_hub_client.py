@@ -1,3 +1,4 @@
+"""Tests for the camera's link to the hub: clock sync, buffering while the hub is down, retries and background delivery."""
 import os
 import sys
 import threading
@@ -11,6 +12,7 @@ from formcheck.hub_client import HubLink
 
 
 class RunningHub:
+    """A hub served on a local port in a background thread."""
     def __init__(self, port=0, core=None):
         self.core = core or HubCore()
         self.srv = make_server("127.0.0.1", port, create_app(self.core), threaded=True)
@@ -24,6 +26,7 @@ class RunningHub:
 
 
 def judgment(t0, t1, score=92.0):
+    """A rep judgment as the judge produces it."""
     return {"t_start": t0, "t_end": t1, "score": score, "label": "good_form", "coverage": 1.0,
             "issues": [], "partial_return": False, "rom": 70.0, "rep_index": 1}
 
