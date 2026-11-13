@@ -1,3 +1,4 @@
+/** Tests for the domain rules: the exercise library, dates, validation, heart rate zones, warnings, progression and permissions. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
@@ -41,6 +42,7 @@ import type { PatientData, PrescribedExercise } from '../src/domain';
 
 const TODAY = new Date(2026, 9, 8); // 2026-10-08
 
+/** A patient record that passes validation. */
 function validPatient(): PatientData {
   return {
     ...emptyPatientData(),
@@ -50,6 +52,7 @@ function validPatient(): PatientData {
     dateOfBirth: '1948-03-14',
   };
 }
+/** A prescribed exercise with the default dose for the given library id. */
 const ex = (id: string): PrescribedExercise => newPrescribedExercise(getExercise(id)!);
 
 describe('exercise library (shared with the Python vision system)', () => {
