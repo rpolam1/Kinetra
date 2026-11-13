@@ -1,5 +1,6 @@
 import type { Landmark, ReplayFrame } from '../../services/hub/types';
 
+/** Pairs of landmark numbers that are joined by a line, using MediaPipe's numbering. */
 export const BONES: readonly (readonly [number, number])[] = [
   [11, 12], [11, 13], [13, 15], [12, 14], [14, 16], // shoulders and arms
   [11, 23], [12, 24], [23, 24], // torso
@@ -8,8 +9,10 @@ export const BONES: readonly (readonly [number, number])[] = [
   [0, 11], [0, 12], // head to shoulders
 ];
 
+/** Points the model is less sure about than this are not drawn. */
 export const MIN_VISIBILITY = 0.4;
 
+/** Turn the flat list of numbers from a recorded rep into x, y and visibility triples. */
 export function groupLandmarks(flat: readonly number[]): Landmark[] {
   const out: Landmark[] = [];
   for (let i = 0; i + 2 < flat.length; i += 3) out.push([flat[i]!, flat[i + 1]!, flat[i + 2]!]);
@@ -23,6 +26,7 @@ export interface Segment {
   y2: number;
 }
 
+/** Lines to draw, in pixels. A bone is skipped when either end is not visible. */
 export function boneSegments(landmarks: readonly Landmark[], width: number, height: number, minVisibility = MIN_VISIBILITY): Segment[] {
   const segments: Segment[] = [];
   for (const [a, b] of BONES) {
@@ -34,6 +38,7 @@ export function boneSegments(landmarks: readonly Landmark[], width: number, heig
   return segments;
 }
 
+/** Dots to draw, in pixels, for the joints that are visible. */
 export function visibleJoints(landmarks: readonly Landmark[], width: number, height: number, minVisibility = MIN_VISIBILITY): { x: number; y: number }[] {
   const joints: { x: number; y: number }[] = [];
   for (const index of new Set(BONES.flat())) {
@@ -49,6 +54,7 @@ export interface Palette {
   background: string;
 }
 
+/** The small part of the canvas context that drawing needs, so it can be tested without a browser. */
 export interface DrawContext {
   fillStyle: string | CanvasGradient | CanvasPattern;
   strokeStyle: string | CanvasGradient | CanvasPattern;
@@ -63,6 +69,7 @@ export interface DrawContext {
   fill(): void;
 }
 
+/** Paint the background and then the skeleton. With no landmarks only the background is drawn. */
 export function drawSkeleton(ctx: DrawContext, landmarks: readonly Landmark[] | null, width: number, height: number, palette: Palette): void {
   ctx.fillStyle = palette.background;
   ctx.fillRect(0, 0, width, height);
@@ -84,10 +91,12 @@ export function drawSkeleton(ctx: DrawContext, landmarks: readonly Landmark[] | 
   }
 }
 
+/** Length of a replay in seconds. */
 export function replayDuration(frames: readonly ReplayFrame[]): number {
   return frames.length === 0 ? 0 : frames[frames.length - 1]!.t;
 }
 
+/** Index of the last frame at or before a time, found by binary search. Returns -1 for an empty replay. */
 export function frameIndexAt(frames: readonly ReplayFrame[], t: number): number {
   if (frames.length === 0) return -1;
   let lo = 0;
