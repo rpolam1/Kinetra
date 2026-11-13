@@ -3,12 +3,14 @@ import type { Prescription } from '../../domain';
 import { Button } from '../../ui/Button';
 import { Badge, Card } from '../../ui/display';
 
+/** The props for the history list. Restore is hidden for people who cannot edit. */
 interface VersionHistoryProps {
   history: readonly Prescription[];
   canRestore: boolean;
   onRestore: (version: Prescription) => void;
 }
 
+/** Lists every saved version newest first, with a summary of what changed from the version before it. */
 export function VersionHistory({ history, canRestore, onRestore }: VersionHistoryProps) {
   return (
     <Card title="Version history" description="Every change is kept. Restoring copies an old version into the editor; saving makes a new version.">
@@ -17,6 +19,7 @@ export function VersionHistory({ history, canRestore, onRestore }: VersionHistor
       ) : (
         <ol className="space-y-3" aria-label="Prescription versions">
           {history.map((v, i) => {
+            // The list is newest first, so the next item is the older version to compare against
             const older = history[i + 1] ?? null;
             return (
               <li key={v.id} className="space-y-1 text-sm">
