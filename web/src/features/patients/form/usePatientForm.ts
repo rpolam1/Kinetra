@@ -11,6 +11,7 @@ export interface PatientFormState {
   save: () => void;
 }
 
+/** Holds the form data, the validation errors and the save state for a patient form. */
 export function usePatientForm(initial: PatientData, onSubmit: (data: PatientData) => Promise<void>): PatientFormState {
   const [data, setData] = useState<PatientData>(initial);
   const [saving, setSaving] = useState(false);

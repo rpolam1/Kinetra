@@ -17,12 +17,14 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** The signed in person and the sign in actions. Must be used inside AuthProvider. */
 export function useAuth(): AuthContextValue {
   const value = useContext(AuthContext);
   if (!value) throw new Error('useAuth must be used inside <AuthProvider>');
   return value;
 }
 
+/** Tracks who is signed in. Loading stays true until the data layer reports the first state. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { auth } = useData();
   const [user, setUser] = useState<AuthUser | null>(auth.current());

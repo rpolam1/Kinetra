@@ -4,6 +4,7 @@ import { Button } from '../../ui/Button';
 import { SkeletonCanvas } from './SkeletonCanvas';
 import { frameIndexAt, groupLandmarks, replayDuration } from './skeleton';
 
+/** Plays a recorded rep as a looping skeleton, with pause, half speed and a scrubber. Dragging the scrubber pauses it. */
 export function ReplayPlayer({ frames, aspect }: { frames: readonly ReplayFrame[]; aspect: number }) {
   const duration = useMemo(() => replayDuration(frames), [frames]);
   const [time, setTime] = useState(0);
@@ -19,6 +20,7 @@ export function ReplayPlayer({ frames, aspect }: { frames: readonly ReplayFrame[
   useEffect(() => {
     if (!playing || duration <= 0) return undefined;
     let handle = 0;
+    // Time moves on by the real time between frames, so the speed does not depend on the screen's refresh rate
     const tick = (now: number) => {
       const dt = last.current === null ? 0 : (now - last.current) / 1000;
       last.current = now;

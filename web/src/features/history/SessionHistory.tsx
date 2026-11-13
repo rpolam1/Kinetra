@@ -5,12 +5,15 @@ import { useData } from '../../app/providers/DataProvider';
 import { Alert, Card, EmptyState, Spinner } from '../../ui/display';
 import { Sparkline } from './Sparkline';
 
+// Only the most recent sessions are loaded, which keeps the page quick for long term patients
 const SHOWN = 30;
 
+/** A short date for a session. */
 function when(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+/** Trends per exercise and a list of past sessions for one patient. */
 export function SessionHistory({ patientId }: { patientId: string }) {
   const { sessions } = useData();
   const history = useAsync(() => sessions.forPatient(patientId, SHOWN), [sessions, patientId]);

@@ -1,6 +1,7 @@
 import type { TagRegistry } from '../../domain';
 import type { HubApi, HubTagEntry } from './HubApi';
 
+/** Whether the hub already has exactly the same tags as the registry. */
 export function hubMatchesRegistry(hubTags: Record<string, HubTagEntry>, registry: TagRegistry): boolean {
   const ids = Object.keys(registry);
   if (ids.length !== Object.keys(hubTags).length) return false;
@@ -11,6 +12,7 @@ export function hubMatchesRegistry(hubTags: Record<string, HubTagEntry>, registr
   });
 }
 
+/** Send the registry to the hub only when it differs. Returns the number of tags written, or null when nothing needed sending. */
 export async function syncRegistryToHub(hub: HubApi, registry: TagRegistry): Promise<number | null> {
   const current = await hub.getTags();
   if (hubMatchesRegistry(current, registry)) return null;

@@ -7,6 +7,7 @@ import { Alert, Spinner } from '../../ui/display';
 
 const DataContext = createContext<DataLayer | null>(null);
 
+/** The data layer. Must be used inside DataProvider. */
 export function useData(): DataLayer {
   const layer = useContext(DataContext);
   if (!layer) throw new Error('useData must be used inside <DataProvider>');
@@ -18,11 +19,13 @@ interface DataProviderProps {
   createLayer?: () => Promise<DataLayer>;
 }
 
+/** Creates the data layer once at start up and shows a spinner or an error until it is ready. A custom createLayer is for tests. */
 export function DataProvider({ children, createLayer }: DataProviderProps) {
   const [layer, setLayer] = useState<DataLayer | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    // Guards against setting state after the component has gone
     let cancelled = false;
     const make = createLayer ?? (() => createDataLayer({ storage: browserStorage() ?? undefined }));
     make().then(

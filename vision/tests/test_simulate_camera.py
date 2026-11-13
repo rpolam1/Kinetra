@@ -1,3 +1,4 @@
+"""Runs the simulated camera tool against a hub in a separate process and checks what the hub sees."""
 import os, subprocess, sys, tempfile, time
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -9,6 +10,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 
 
 def run_tool(hub, *extra, duration=16):
+    """Run the tool for a number of seconds and return the finished process."""
     return subprocess.run([sys.executable, "tools/simulate_camera.py", "--hub", hub.url, "--duration", str(duration), *extra],
                           cwd=ROOT, capture_output=True, text=True, timeout=duration + 30)
 

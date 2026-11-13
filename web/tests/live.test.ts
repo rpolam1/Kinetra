@@ -1,3 +1,4 @@
+/** Tests for the live parts: the event stream parser, hub live calls, skeleton drawing, calibration status, the roster and saved session records. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { MemoryPatientRepository } from '../src/data/memory/MemoryPatientRepository';
@@ -31,6 +32,7 @@ describe('SseParser', () => {
   });
 });
 
+/** A fake streaming response that sends the given chunks and can be held open until a promise settles. */
 function streamOf(chunks: string[], hold?: Promise<void>): Response {
   const enc = new TextEncoder();
   const body = new ReadableStream<Uint8Array>({
@@ -43,6 +45,7 @@ function streamOf(chunks: string[], hold?: Promise<void>): Response {
   return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
 }
 
+/** Polls until a condition is true, and fails the test if it takes too long. */
 const waitFor = async (cond: () => boolean, ms = 2000) => {
   const end = Date.now() + ms;
   while (!cond()) {
@@ -152,6 +155,7 @@ describe('HubApi live endpoints', () => {
   });
 });
 
+/** A landmark with a position and a visibility score. */
 const lm = (x: number, y: number, v = 0.9): Landmark => [x, y, v];
 
 describe('skeleton helpers', () => {
@@ -192,9 +196,11 @@ describe('skeleton helpers', () => {
   });
 });
 
+/** A calibration job with defaults. */
 function job(over: Partial<CalibrationJob> = {}): CalibrationJob {
   return { id: 'j', patient_id: 'P-0001', exercise: 'goblet_squat', camera_id: 'lab-1', status: 'active', target_reps: 5, kept: 0, discarded: 0, pending: 0, message: null, min_kept: 3, slot: null, warnings: [], reps: [], ...over };
 }
+/** A skeleton frame with defaults. */
 const frame = (over: Partial<SkeletonFrame> = {}): SkeletonFrame => ({ job_id: 'j', status: 'ok', message: null, angle: 170, phase: 'rest', reps_sent: 0, aspect: 1.33, landmarks: null, ...over });
 
 describe('calibration status helpers', () => {
@@ -219,6 +225,7 @@ describe('calibration status helpers', () => {
   });
 });
 
+/** A stored patient with a two exercise prescription. */
 async function patientWithPrescription() {
   const store = new MemoryStore(undefined, () => 1000);
   const repo = new MemoryPatientRepository(store);
@@ -232,6 +239,7 @@ async function patientWithPrescription() {
   return { patient, prescription };
 }
 
+/** A live participant with defaults. */
 function person(over: Partial<LiveParticipant>): LiveParticipant {
   return { patient_id: 'P', board_name: 'X', light: 'on_track', reason: '', present: true, cameras: [], exercise: null, progress: null, recent_scores: [], last_rep_at: null, finished: false, done_count: 0, ...over };
 }

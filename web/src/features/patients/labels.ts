@@ -7,6 +7,7 @@ import type {
   SupervisionLevel,
 } from '../../domain';
 
+/** Display text for each of the patient fields that use a fixed set of values. */
 export const STREAM_LABELS: Record<ProgramStream, string> = {
   general: 'General program',
   cancer: 'Cancer care',
@@ -40,6 +41,7 @@ export const SUPERVISION_LABELS: Record<SupervisionLevel, string> = {
   one_to_one: 'Needs one-to-one help',
 };
 
+/** Turn a label table into options for a drop down. */
 export function toOptions<T extends string>(labels: Record<T, string>): { value: T; label: string }[] {
   return (Object.keys(labels) as T[]).map((value) => ({ value, label: labels[value] }));
 }

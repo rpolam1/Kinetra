@@ -13,6 +13,7 @@ import { PrescriptionTab } from './tabs/PrescriptionTab';
 import { ProgressTab } from './tabs/ProgressTab';
 import { TagTab } from './tabs/TagTab';
 
+/** The sections of a patient profile. The address picks the tab, and an unknown tab opens the overview. */
 const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'details', label: 'Details' },
@@ -23,10 +24,12 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
+/** The tab to show for a name from the address. */
 function resolveTab(tab: string | undefined): TabId {
   return TABS.find((t) => t.id === tab)?.id ?? 'overview';
 }
 
+/** A patient's profile. The header shows the safety points an instructor needs at a glance, such as falls risk and beta blockers, above the tabs. */
 export function PatientProfilePage({ patientId, tab }: { patientId: string; tab?: string }) {
   const { patients } = useData();
   const state = useAsync(() => patients.get(patientId), [patients, patientId]);

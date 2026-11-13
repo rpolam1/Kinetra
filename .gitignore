@@ -19,3 +19,9 @@ kinetra-jetson.sh
 
 # secrets
 service-account*.json
+
+
+# apple
+apple/*.xcodeproj/xcuserdata/
+apple/*.xcodeproj/project.xcworkspace/xcuserdata/
+.DS_Store

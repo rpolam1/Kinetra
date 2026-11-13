@@ -1,3 +1,4 @@
+/** Tests of the hub client against the real Python hub, which is started on a free port for the run. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
@@ -10,9 +11,12 @@ import { HubApi, HubError } from '../src/services/hub/HubApi';
 import { hubMatchesRegistry, syncRegistryToHub } from '../src/services/hub/tagSync';
 import type { TagRegistry } from '../src/domain';
 
+// The hub code sits next to the web folder in the repo
 const VISION_DIR = resolve(import.meta.dirname, '..', '..', 'vision');
+// Can be changed with the PYTHON environment variable when python3 is not the right command
 const PYTHON = process.env.PYTHON ?? 'python3';
 
+/** Finds a port that is free right now by asking the system for one and releasing it. */
 function freePort(): Promise<number> {
   return new Promise((ok, fail) => {
     const srv = createServer();
@@ -24,6 +28,7 @@ function freePort(): Promise<number> {
   });
 }
 
+/** Starts the hub with a temporary database and waits until its health check answers. */
 async function startHub(apiKey?: string): Promise<{ url: string; stop: () => void }> {
   const port = await freePort();
   const db = join(mkdtempSync(join(tmpdir(), 'hub-')), 'hub.db');
@@ -44,6 +49,7 @@ async function startHub(apiKey?: string): Promise<{ url: string; stop: () => voi
   throw new Error('hub did not start (is Python + Flask installed? set PYTHON=...)');
 }
 
+// Two patients with tags, used by the sync tests
 const REGISTRY: TagRegistry = {
   0: { patientId: 'pat_1', code: 'P-0001', boardName: 'Ana K.' },
   7: { patientId: 'pat_2', code: 'P-0002', boardName: 'Bo L.' },

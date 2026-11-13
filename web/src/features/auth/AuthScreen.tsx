@@ -10,15 +10,18 @@ type Mode = 'signin' | 'signup';
 const HEADLINE = 'Know who needs a hand before they ask.';
 const PITCH = "Kinetra counts every rep and checks form against each person's own baseline, so you can spend your time with the people who need you.";
 
+/** Open on the sign up form when the address asks for it. */
 function initialMode(): Mode {
   return typeof window !== 'undefined' && window.location.hash.startsWith('#/signup') ? 'signup' : 'signin';
 }
 
+/** The sign in and sign up page. Wide screens also show a panel with the product pitch and an animated trace. */
 export function AuthScreen() {
   const [mode, setMode] = useState<Mode>(initialMode);
   const formRef = useRef<HTMLDivElement>(null);
   const first = useRef(true);
 
+  // The form slides in when the mode changes, but not on the first load
   useEffect(() => {
     if (first.current) {
       first.current = false;

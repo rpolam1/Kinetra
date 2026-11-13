@@ -1,3 +1,4 @@
+"""Tests for the thigh lean angle, which measures how far a leg swings sideways."""
 import math, os, random, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from formcheck.feature_extractor import FeatureExtractor
@@ -12,6 +13,7 @@ class LM:
 
 
 def pose(lift_deg_l, lift_deg_r=0.0):
+    """A standing pose with each leg swung out by the given number of degrees."""
     lm = [LM() for _ in range(33)]
     def put(i, x, y): lm[i] = LM(x, y, 0.99)
     put(11, 0.46, 0.25); put(12, 0.54, 0.25)
@@ -25,6 +27,7 @@ def pose(lift_deg_l, lift_deg_r=0.0):
 
 
 def session(peaks, dur=1.8, rest=0.8, seed=1, noise=1.5):
+    """Simulate a person lifting a leg to each peak in turn and return the reps found."""
     rng, ext, seg, out, t = random.Random(seed), FeatureExtractor(CFG), RepSegmenter(
         rest_direction="low"), [], 0.0
     def feed(l, r):

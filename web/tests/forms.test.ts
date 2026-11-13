@@ -1,3 +1,4 @@
+/** Tests for the calendar helpers and for how form errors map to the steps of the new patient form. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { emptyPatientData, validatePatientData } from '../src/domain';

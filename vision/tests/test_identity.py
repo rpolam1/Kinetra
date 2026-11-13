@@ -1,3 +1,4 @@
+"""Tests for tag reading and for the tracker that keeps one id per person across frames."""
 import os
 import sys
 
@@ -11,11 +12,13 @@ H, W = SHAPE[:2]
 
 
 class LM:
+    """Minimal stand in for a MediaPipe landmark."""
     def __init__(self, x=0.0, y=0.0, v=0.99):
         self.x, self.y, self.visibility = x, y, v
 
 
 def make_pose(cx, cy, scale=0.16, shoulder_w=0.8, thigh=1.0, shank=1.0, vis=0.99):
+    """A standing person with the torso centred on cx and cy. Thigh and shank scale the leg lengths."""
     lm = [LM(0, 0, 0.0) for _ in range(33)]
     tl = scale * H
     def put(i, x, y, v=vis): lm[i] = LM(x / W, y / H, v)
@@ -30,6 +33,7 @@ def make_pose(cx, cy, scale=0.16, shoulder_w=0.8, thigh=1.0, shank=1.0, vis=0.99
 
 
 def tag_at(patient, x, y):
+    """A tag detection that is already mapped to a patient."""
     return {"tag_id": patient, "patient_id": f"p{patient:03d}", "center": (x, y), "size": 40}
 
 

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { RefObject } from 'react';
 import { gsap, motionAllowed } from './gsap';
 
+/** Fade and lift elements marked with data-rise when they first appear inside the root, including ones added later. Each element plays once. */
 export function useRise(rootRef: RefObject<HTMLElement | null>): void {
   useEffect(() => {
     const root = rootRef.current;

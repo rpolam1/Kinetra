@@ -4,6 +4,7 @@ export interface SseMessage {
   id: string | null;
 }
 
+/** Splits a stream of text into server sent events. A chunk can end part way through an event, so unfinished text is kept for the next chunk. */
 export class SseParser {
   private buffer = '';
 
@@ -22,6 +23,7 @@ export class SseParser {
   }
 }
 
+/** Read one event block. Comment lines are skipped, and a block with no data gives null. */
 function parseBlock(block: string): SseMessage | null {
   let event = 'message';
   let id: string | null = null;
@@ -52,6 +54,7 @@ export interface StreamOptions {
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
 }
 
+/** Wait for a time, finishing early if the stream is closed. */
 function defaultSleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     const timer = setTimeout(resolve, ms);
@@ -62,8 +65,10 @@ function defaultSleep(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
+/** Open a server sent event stream and reconnect with a growing delay when it drops. A 401 stops it, because retrying with the same key cannot work. Returns a function that closes it. */
 export function openStream(options: StreamOptions): () => void {
   const controller = new AbortController();
+  // The fetch API is used instead of EventSource because EventSource cannot send the API key header
   const fetchImpl = options.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   const sleep = options.sleep ?? defaultSleep;
   const minDelay = options.minDelayMs ?? 500;

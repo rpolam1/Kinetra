@@ -1,3 +1,4 @@
+/** Tests for the data layer against the in memory backend, including codes, tags, search, caching and prescription versions. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { CachedPatientRepository } from '../src/data/CachedPatientRepository';
@@ -14,6 +15,7 @@ import { requireFirebaseConfig } from '../src/config/env';
 import { defaultCardio, emptyPatientData, getExercise, newPrescribedExercise } from '../src/domain';
 import type { PatientData, PrescriptionContent } from '../src/domain';
 
+/** Patient data with the required fields filled in. */
 function person(first: string, last: string, extra: Partial<PatientData> = {}): PatientData {
   return {
     ...emptyPatientData(),
@@ -25,12 +27,14 @@ function person(first: string, last: string, extra: Partial<PatientData> = {}): 
   };
 }
 
+/** A fresh store with a fake clock that moves forward on every call, so timestamps are always different. */
 function setup() {
   let t = 1_000;
   const store = new MemoryStore(undefined, () => (t += 10));
   return { store, patients: new MemoryPatientRepository(store), rx: new MemoryPrescriptionRepository(store) };
 }
 
+/** Checks that a promise fails with a data error of the given code. */
 async function rejects(promise: Promise<unknown>, code: string) {
   await assert.rejects(promise, (e: unknown) => e instanceof DataError && e.code === code);
 }

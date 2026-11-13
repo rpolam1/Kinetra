@@ -20,10 +20,12 @@ import { canFinish, describeCapture, nextPendingIndex, progressText } from './ca
 const HINT_TONE = { good: 'green', warn: 'amber', neutral: 'slate' } as const;
 const DEFAULT_REPS = 5;
 
+/** A readable message for whatever was thrown. */
 function message(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong';
 }
 
+/** Runs a calibration for one patient and exercise. The camera sends each detected rep, the instructor keeps or discards them, and finishing builds the template on the hub and saves a record in the cloud database. */
 export function CalibrationPanel({ patient, exerciseId, onClose, onSaved }: { patient: Patient; exerciseId: string; onClose: () => void; onSaved: (record: CalibrationRecord) => void }) {
   const { api, status } = useHub();
   const { calibrations } = useData();
@@ -58,6 +60,7 @@ export function CalibrationPanel({ patient, exerciseId, onClose, onSaved }: { pa
 
   const hint = useMemo(() => describeCapture(job, frame), [job, frame]);
 
+  /** Run a hub call with the busy flag and the error message handled in one place. Returns null when it fails. */
   async function run<T>(work: () => Promise<T>): Promise<T | null> {
     setBusy(true);
     setError(null);
@@ -201,6 +204,7 @@ export function CalibrationPanel({ patient, exerciseId, onClose, onSaved }: { pa
   );
 }
 
+/** The reps captured so far, as buttons that select a rep for review. */
 function RepList({ job, selected, onSelect }: { job: CalibrationJob | null; selected: number | null; onSelect: (index: number) => void }) {
   if (!job || job.reps.length === 0) return null;
   const tone = { pending: 'amber', kept: 'green', discarded: 'red' } as const;

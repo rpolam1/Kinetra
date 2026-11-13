@@ -1,3 +1,4 @@
+"""Joint angle and lean calculations from landmark positions."""
 import numpy as np
 
 # joints that make up the angle at each middle joint
@@ -10,6 +11,7 @@ ANGLE_JOINTS = {
 
 
 def calculate_angle(a, b, c):
+    """Angle in degrees at point b between the segments b-a and b-c. Returns None when a segment has no length."""
     a, b, c = np.array(a), np.array(b), np.array(c)
     ba = a - b
     bc = c - b
@@ -24,6 +26,7 @@ def calculate_angle(a, b, c):
 
 
 def calculate_lean(top_point, bottom_point):
+    """Angle in degrees between the bottom-to-top segment and straight up, so 0 means upright. Returns None for a zero-length segment."""
     top, bottom = np.array(top_point), np.array(bottom_point)
     segment = top - bottom
     vertical = np.zeros(len(segment))

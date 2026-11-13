@@ -1,3 +1,4 @@
+/** Tests for the printed report. They check that typed text is escaped and that the report content is right. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { buildProgressReport } from '../src/domain';
@@ -7,15 +8,18 @@ import { buildReportHtml, cssString, escapeHtml, highlights } from '../src/featu
 const DAY = 86_400_000;
 const MON = Date.UTC(2026, 0, 5);
 
+/** An exercise result with defaults. */
 function result(over: Partial<ExerciseResult> = {}): ExerciseResult {
   return { exerciseId: 'goblet_squat', name: 'Goblet squat', tracking: 'scored', targetSets: 2, targetReps: 10, reps: 20, sets: 2, good: 14, needsCorrection: 4, flagged: 2, avgScore: 78, avgRom: 70, avgRepSeconds: 2, completed: true, ...over };
 }
 
+/** A saved session on the given day of the week. */
 function session(id: string, day: number, exercises: ExerciseResult[]): PatientSession {
   const startedAt = MON + day * DAY;
   return { id, patientId: 'p1', startedAt, endedAt: startedAt + 1_800_000, exercises, savedBy: 'u1' };
 }
 
+// The last name holds markup on purpose, to prove it comes out escaped
 const patient = { firstName: 'Ann', lastName: 'Lee <b>x</b>', code: 'P-0001', dateOfBirth: '1950-01-01', goals: 'Walk "further" & safer' } as Patient;
 
 describe('escapeHtml', () => {
@@ -63,6 +67,35 @@ describe('buildReportHtml', () => {
     const one = buildReportHtml(patient, buildProgressReport([session('a', 0, [result({ avgRom: null, avgRepSeconds: null })])]), 0);
     assert.ok(one.includes('No data yet'));
     assert.ok(one.includes('Changes appear once there are two or more weeks'));
+  });
+});
+
+describe('timed exercises in the report', () => {
+  const timed = (day: number, best: number, completed: number) =>
+    session(`t${day}`, day, [
+      result({ exerciseId: 'wall_sit', name: 'Wall sit', tracking: 'timed', reps: completed, good: 0, avgScore: null, avgRom: null, avgRepSeconds: 30, holdAttempts: 3, holdsCompleted: completed, bestHoldSeconds: best, avgHoldSeconds: best - 4 }),
+      result(),
+    ]);
+  const html = buildReportHtml(patient, buildProgressReport([timed(0, 10, 0), timed(8, 29, 2)]), 0);
+  const [, wallSit = ''] = html.split('<h3>Wall sit</h3>');
+  const wallSitSection = wallSit.split('</section>')[0]!;
+
+  it('shows hold charts and a hold table for the timed exercise', () => {
+    assert.ok(wallSitSection.includes('Longest hold'));
+    assert.ok(wallSitSection.includes('Holds completed'));
+    assert.ok(wallSitSection.includes('Holds attempted'));
+    assert.ok(!wallSitSection.includes('Range of motion'));
+    assert.ok(!wallSitSection.includes('Tempo'));
+  });
+
+  it('keeps range of motion and tempo for rep exercises on the same report', () => {
+    const squat = html.split('<h3>Goblet squat</h3>')[1]!.split('</section>')[0]!;
+    assert.ok(squat.includes('Range of motion'));
+    assert.ok(squat.includes('Tempo'));
+  });
+
+  it('writes a highlight about the longer hold', () => {
+    assert.match(highlights(buildProgressReport([timed(0, 10, 0), timed(8, 29, 2)])).join(' '), /longest hold is up 19 seconds/);
   });
 });
 

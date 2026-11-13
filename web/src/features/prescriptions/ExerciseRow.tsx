@@ -6,11 +6,13 @@ import { NumberField, SelectField, TextField } from '../../ui/fields';
 import { TrackingBadge } from './TrackingBadge';
 import { Icon } from '../../ui/Icon';
 
+// The rules a rep based exercise can use to decide when to raise the load
 const PROGRESSION: { value: ProgressionRule; label: string }[] = [
   { value: 'twenty_reps_two_sessions', label: '20 good reps, 2 sessions in a row' },
   { value: 'manual', label: 'Instructor decides' },
 ];
 
+/** The props for one prescribed exercise. The index and count decide which move buttons are available. */
 interface ExerciseRowProps {
   item: PrescribedExercise;
   index: number;
@@ -22,11 +24,13 @@ interface ExerciseRowProps {
   onMove: (direction: -1 | 1) => void;
 }
 
+/** The editable dose for one exercise, with warnings for the dose and for how suitable it is for this patient. */
 export function ExerciseRow({ item, index, count, patient, disabled, onChange, onRemove, onMove }: ExerciseRowProps) {
   const def = getExercise(item.exerciseId);
   if (!def) {
     return <Alert tone="error" title={`Unknown exercise "${item.exerciseId}"`}>It was removed from the library. Remove this line.</Alert>;
   }
+  // Timed holds have no reps, and count only or scored exercises have no fixed time
   const repBased = def.tracking === 'scored' || def.tracking === 'count_only';
   const usesSeconds = def.tracking === 'timed' || def.defaultSeconds !== undefined;
   const warnings = [...doseWarnings(item, def), ...suitabilityWarnings(patient, def)];

@@ -1,3 +1,4 @@
+"""Tests for choosing a browser when the hub starts."""
 import os
 import sys
 import tempfile
@@ -7,6 +8,7 @@ from server import hub
 
 
 class Patched:
+    """Context manager that swaps attributes on an object and restores them afterwards."""
     def __init__(self, target, **attrs):
         self.target, self.attrs, self.saved = target, attrs, {}
 

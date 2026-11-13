@@ -18,6 +18,7 @@ const SIZES: Record<Size, string> = {
   md: 'gap-2 px-4 py-2 text-sm',
 };
 
+/** The classes for a button, so a link can be styled like one. */
 export function buttonClass(variant: Variant = 'primary', size: Size = 'md', extra = ''): string {
   return `inline-flex select-none items-center justify-center rounded-lg font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-45 ${SIZES[size]} ${VARIANTS[variant]} ${extra}`;
 }
@@ -31,6 +32,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children?: ReactNode;
 }
 
+/** A button with variants and sizes. While loading it is disabled and shows a spinner, so it cannot be clicked twice. */
 export function Button({ variant = 'primary', size = 'md', loading = false, icon, iconAfter, disabled, className = '', children, type = 'button', ...rest }: ButtonProps) {
   return (
     <button type={type} disabled={disabled || loading} aria-busy={loading || undefined} data-hover="button" className={buttonClass(variant, size, className)} {...rest}>

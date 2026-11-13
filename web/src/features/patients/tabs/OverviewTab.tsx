@@ -8,10 +8,12 @@ import { Icon } from '../../../ui/Icon';
 import { SessionHistory } from '../../history/SessionHistory';
 import { AID_LABELS, FALLS_LABELS, REFERRAL_LABELS, SIDE_LABELS, STREAM_LABELS, SUPERVISION_LABELS } from '../labels';
 
+/** The read-only summary of a patient with their prescription, cardio target and consent. */
 export function OverviewTab({ patient }: { patient: Patient }) {
   const { prescriptions } = useData();
   const rx = useAsync(() => prescriptions.current(patient.id), [prescriptions, patient.id]);
   const age = computeAge(patient.dateOfBirth);
+  // The zone uses the intensity range from the dose guidelines so it matches what the prescription editor shows
   const zone = heartRateZone({
     age,
     restingHr: patient.restingHr,

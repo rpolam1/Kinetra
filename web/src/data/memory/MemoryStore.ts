@@ -2,11 +2,13 @@ import type { CalibrationRecord, Patient, PatientSession, Prescription, UserAcco
 import { emptyRegistry } from '../registry';
 import type { Registry } from '../registry';
 
+/** The part of localStorage that the store uses, so tests can pass a fake. */
 export interface KeyValueStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
 
+/** A user with a password. Only the demo backend stores passwords, and only in the browser. */
 export interface StoredUser extends UserAccount {
   password: string;
 }
@@ -23,6 +25,7 @@ interface Snapshot {
 
 const STORAGE_KEY = 'exercise-tracker.demo-db.v1';
 
+/** In memory data for the demo backend. It is saved to storage after changes, so it survives a reload. */
 export class MemoryStore {
   patients = new Map<string, Patient>();
   prescriptions = new Map<string, Prescription[]>();
@@ -40,6 +43,7 @@ export class MemoryStore {
     this.load();
   }
 
+  /** A short unique id with a prefix. */
   nextId(prefix: string): string {
     this.counter += 1;
     return `${prefix}${this.counter.toString(36).padStart(4, '0')}`;
@@ -55,6 +59,7 @@ export class MemoryStore {
     return () => this.userListeners.delete(listener);
   }
 
+  /** Save everything to storage. Storage errors are ignored, because the saved data is a convenience and the app has to keep working without it. */
   persist(): void {
     if (!this.storage) return;
     const snapshot: Snapshot = {
@@ -72,6 +77,7 @@ export class MemoryStore {
     }
   }
 
+  /** Restore saved data. A missing or damaged save leaves the store as it was. */
   private load(): void {
     if (!this.storage) return;
     try {

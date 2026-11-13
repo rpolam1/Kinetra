@@ -13,6 +13,7 @@ const BADGE: Record<Tone, string> = {
   violet: 'bg-indigo-100 text-indigo-900',
 };
 
+/** A small coloured label. */
 export function Badge({ tone = 'slate', icon, children }: { tone?: Tone; icon?: IconName; children: ReactNode }) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold ${BADGE[tone]}`}>
@@ -31,6 +32,7 @@ const ALERT: Record<AlertTone, { box: string; icon: IconName; iconColor: string 
   success: { box: 'border-emerald-300 bg-emerald-50 text-emerald-950', icon: 'success', iconColor: 'text-emerald-600' },
 };
 
+/** A message box. Errors are announced to screen readers straight away and the other tones politely. */
 export function Alert({ tone = 'info', title, children }: { tone?: AlertTone; title?: string; children?: ReactNode }) {
   const look = ALERT[tone];
   return (
@@ -53,6 +55,7 @@ interface CardProps {
   flush?: boolean;
 }
 
+/** A white panel with an optional title, description and actions. Flush removes the padding around the content, for tables and lists. */
 export function Card({ title, description, actions, children, className = '', flush = false }: CardProps) {
   return (
     <section data-rise className={`rounded-(--radius-card) border border-slate-200 bg-white shadow-card ${className}`}>
@@ -70,6 +73,7 @@ export function Card({ title, description, actions, children, className = '', fl
   );
 }
 
+/** The heading at the top of a page, with an optional small label above it and buttons on the right. */
 export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description?: ReactNode; actions?: ReactNode }) {
   return (
     <header data-rise className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
@@ -83,6 +87,7 @@ export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?:
   );
 }
 
+/** A loading indicator with a label. */
 export function Spinner({ label = 'Loading…' }: { label?: string }) {
   return (
     <p role="status" className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500">
@@ -92,6 +97,7 @@ export function Spinner({ label = 'Loading…' }: { label?: string }) {
   );
 }
 
+/** A placeholder for a list or section that has nothing to show yet. */
 export function EmptyState({ title, icon = 'info', children }: { title: string; icon?: IconName; children?: ReactNode }) {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-6 py-10 text-center">
@@ -104,6 +110,7 @@ export function EmptyState({ title, icon = 'info', children }: { title: string; 
   );
 }
 
+/** Pairs of a label and a value, laid out in a grid. */
 export function DefinitionList({ items }: { items: readonly { term: string; detail: ReactNode }[] }) {
   return (
     <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
@@ -117,6 +124,7 @@ export function DefinitionList({ items }: { items: readonly { term: string; deta
   );
 }
 
+/** Up to two initials from a name or an email address. */
 export function initialsOf(name: string): string {
   return (
     name
@@ -128,6 +136,7 @@ export function initialsOf(name: string): string {
   );
 }
 
+/** A circle with initials. It is hidden from screen readers because the name is always shown nearby. */
 export function Avatar({ name, size = 32, tone = 'bg-teal-100 text-teal-900' }: { name: string; size?: number; tone?: string }) {
   return (
     <span aria-hidden="true" style={{ width: size, height: size, fontSize: size * 0.38 }} className={`inline-grid shrink-0 place-items-center rounded-full font-semibold ${tone}`}>

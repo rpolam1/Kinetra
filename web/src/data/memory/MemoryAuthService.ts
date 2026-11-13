@@ -5,6 +5,7 @@ import type { AuthService } from '../repositories';
 import { MemoryStore } from './MemoryStore';
 import type { StoredUser } from './MemoryStore';
 
+/** The shared password for the built in demo accounts. */
 export const DEMO_PASSWORD = 'demo';
 export const DEMO_ACCOUNTS: Readonly<Record<string, Role>> = {
   'instructor@demo.test': 'instructor',
@@ -12,8 +13,10 @@ export const DEMO_ACCOUNTS: Readonly<Record<string, Role>> = {
   'volunteer@demo.test': 'volunteer',
 };
 
+/** Display names for the demo accounts. */
 const NAMES: Readonly<Record<Role, string>> = { admin: 'Demo Admin', instructor: 'Demo Instructor', volunteer: 'Demo Volunteer' };
 
+/** The part of an account the signed in person sees. A role only counts once the account is approved. */
 export function toAuthUser(user: UserAccount): AuthUser {
   return {
     uid: user.uid,
@@ -25,6 +28,7 @@ export function toAuthUser(user: UserAccount): AuthUser {
   };
 }
 
+/** Sign in against accounts kept in the browser. This is for demos and tests, so passwords are stored in plain text. */
 export class MemoryAuthService implements AuthService {
   readonly demo = true;
   private user: AuthUser | null = null;
@@ -98,6 +102,7 @@ export class MemoryAuthService implements AuthService {
     return () => this.listeners.delete(listener);
   }
 
+  /** Add the demo accounts for each role if they are not there yet. */
   private seedDemoAccounts(): void {
     for (const [email, role] of Object.entries(DEMO_ACCOUNTS)) {
       if ([...this.store.users.values()].some((u) => u.email === email)) continue;
@@ -118,6 +123,7 @@ export class MemoryAuthService implements AuthService {
     }
   }
 
+  /** Re-read the signed in person after an admin changes their account. */
   private refresh(): void {
     if (!this.user) return;
     const latest = this.store.users.get(this.user.uid);

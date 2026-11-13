@@ -9,6 +9,7 @@ import { useToast } from '../../app/providers/ToastProvider';
 import { Alert, PageHeader } from '../../ui/display';
 import { PatientForm } from './form/PatientForm';
 
+/** The new patient form. Saving creates the profile, assigns a patient code and the lowest free tag, and sends the tags to the hub. */
 export function NewPatientPage() {
   const { patients } = useData();
   const { user, can } = useAuth();

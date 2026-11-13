@@ -1,3 +1,4 @@
+"""Synthetic squat landmarks for tests: stick-figure poses with known joint angles plus noise, so rep detection and scoring can be checked without a camera."""
 import math
 import random
 
@@ -7,12 +8,14 @@ ANGLE_NOISE = 2.5  # deg of per-frame jitter on every joint angle
 
 
 class LM:
+    """Minimal landmark with x, y and visibility."""
 
     def __init__(self, x=0.5, y=0.5, v=0.99):
         self.x, self.y, self.visibility = x, y, v
 
 
 def make_landmarks(theta_l, theta_r, lean, foreshorten):
+    """Build 33 landmarks for a side-on figure with the given knee angles and torso lean. The torso shortens as foreshorten grows."""
     lm = [LM(v=0.0) for _ in range(33)]
     L, T = 0.22, 0.25 * (1 - foreshorten)  # torso shrinks as you squat (camera view)
 
@@ -36,6 +39,7 @@ def make_landmarks(theta_l, theta_r, lean, foreshorten):
 
 
 def frames(specs, seed=0, fps=FPS, angle_noise=ANGLE_NOISE):
+    """Generate timed frames: a standing hold, then one squat per spec with a standing pause after each. Returns (time, landmarks) pairs."""
     rng = random.Random(seed)
     t = 0.0
     out = []
@@ -67,10 +71,12 @@ def frames(specs, seed=0, fps=FPS, angle_noise=ANGLE_NOISE):
 
 
 def good_spec(rng):
+    """Parameters for a squat with good form."""
     return dict(theta_min=rng.uniform(95, 125), lean=rng.uniform(20, 32), dur=rng.uniform(1.3, 2.2))
 
 
 def bad_spec(rng, kind="shallow"):
+    """A good squat altered to show one fault: too shallow, too much lean, or too fast."""
     spec = good_spec(rng)
     if kind == "shallow":
         spec["theta_min"] = rng.uniform(145, 152)
@@ -84,6 +90,7 @@ def bad_spec(rng, kind="shallow"):
 
 
 def shifted(landmarks, dx=0.0, dy=0.0, jitter=0.0, rng=None):
+    """Copy of the landmarks moved by dx and dy, with optional random jitter."""
     rng = rng or random.Random(0)
     return [LM(l.x + dx + (rng.gauss(0, jitter) if jitter else 0.0),
                l.y + dy + (rng.gauss(0, jitter) if jitter else 0.0), l.visibility)
@@ -91,5 +98,6 @@ def shifted(landmarks, dx=0.0, dy=0.0, jitter=0.0, rng=None):
 
 
 def chest_px(landmarks, frame_shape=FRAME_SHAPE):
+    """Midpoint of the shoulders in pixels."""
     h, w = frame_shape[:2]
     return ((landmarks[11].x + landmarks[12].x) / 2 * w, (landmarks[11].y + landmarks[12].y) / 2 * h)

@@ -58,6 +58,7 @@ import {
   faChevronDown,
 } from '@fortawesome/free-solid-svg-icons';
 
+/** Icons by the role they play in the interface. Components ask for a name such as warning, and only the icons listed here are bundled. */
 export const ICONS = {
   patients: faUsers,
   session: faTowerBroadcast,

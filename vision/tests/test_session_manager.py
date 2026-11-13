@@ -1,3 +1,4 @@
+"""Tests for session validation, progress, advancing and saving to the store."""
 import os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from server.session import SessionError, SessionManager, exercise_progress, normalize_participants
@@ -5,14 +6,17 @@ from server.store import Store
 
 
 def item(eid="goblet_squat", **kw):
+    """A plan item. Keyword arguments override its fields."""
     return dict({"exercise_id": eid, "name": eid, "tracking": "scored", "sets": 2, "reps": 5}, **kw)
 
 
 def person(pid="P-1", plan=None, name="Ana K."):
+    """A participant with a two exercise plan."""
     return {"patient_id": pid, "board_name": name, "plan": plan or [item(), item("push_up")]}
 
 
 def raises(code, fn, *a, **k):
+    """Check that the call raises a SessionError with the given code."""
     try:
         fn(*a, **k)
     except SessionError as e:
@@ -24,6 +28,7 @@ _ids = iter(range(1, 10_000))
 
 
 def rep(t0, t1, score=90.0):
+    """A combined rep with a unique id."""
     return {"id": next(_ids), "t_start": t0, "t_end": t1, "score": score, "label": "good_form"}
 
 

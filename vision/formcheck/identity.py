@@ -1,3 +1,4 @@
+"""Finds out who each person in view is. AprilTags give a definite identity, and between tag sightings a tracker keeps it by position and by body proportions."""
 import math
 
 import numpy as np
@@ -20,6 +21,7 @@ _TAG_NEAR_POINTS = (_NOSE,) + _SHOULDERS + _ELBOWS + _WRISTS + _HIPS
 
 
 class TagDetector:
+    """Detects AprilTags in a camera frame. Needs the OpenCV aruco module."""
 
     def __init__(self, dictionary="DICT_APRILTAG_36h11"):
         if cv2 is None or not hasattr(cv2, "aruco"):
@@ -52,6 +54,7 @@ class TagDetector:
 
     @staticmethod
     def make_tag_image(tag_id, size_px=400, dictionary="DICT_APRILTAG_36h11"):
+        """Render a printable tag with a white border so detection still works on paper or a screen."""
         aruco = cv2.aruco
         d = aruco.getPredefinedDictionary(getattr(aruco, dictionary))
         if hasattr(aruco, "generateImageMarker"):
@@ -64,6 +67,7 @@ class TagDetector:
 
 
 def _pt(landmarks, idx, w, h):
+    """Landmark position in pixels, or None when it is too uncertain to use."""
     lm = landmarks[idx]
     if getattr(lm, "visibility", 1.0) < VIS_MIN:
         return None
@@ -71,6 +75,7 @@ def _pt(landmarks, idx, w, h):
 
 
 def _mid(a, b):
+    """Midpoint of two points, or whichever one exists."""
     if a is not None and b is not None:
         return ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
     return a or b
@@ -81,6 +86,7 @@ def _dist(a, b):
 
 
 def body_info(landmarks, frame_shape):
+    """Measurements used for tracking: body centre, a size scale, a body-proportion signature and the points a tag can sit near. Returns None when fewer than two torso points are visible."""
     h, w = frame_shape[0], frame_shape[1]
     sh = [_pt(landmarks, i, w, h) for i in _SHOULDERS]
     hp = [_pt(landmarks, i, w, h) for i in _HIPS]
@@ -93,6 +99,7 @@ def body_info(landmarks, frame_shape):
     sh_mid, hip_mid = _mid(*sh), _mid(*hp)
     shoulder_w = _dist(sh[0], sh[1]) if sh[0] and sh[1] else None
     torso_len = _dist(sh_mid, hip_mid) if sh_mid and hip_mid else None
+    # Torso length is the best size scale, then shoulder width, then a fixed guess
     if torso_len:
         scale = torso_len
     elif shoulder_w:
@@ -118,6 +125,7 @@ def body_info(landmarks, frame_shape):
 
 
 def _sig_diff(a, b):
+    """Difference between two body signatures. Returns a neutral value when they share no measurements."""
     keys = set(a) & set(b)
     if not keys:
         return 0.15  # unknown: neutral
@@ -125,6 +133,7 @@ def _sig_diff(a, b):
 
 
 def _merge_sig(old, new, alpha=0.15):
+    """Blend a new signature into the stored one slowly, so a single noisy frame barely changes it."""
     out = dict(old)
     for k, v in new.items():
         out[k] = v if k not in out else (1 - alpha) * out[k] + alpha * v
@@ -132,6 +141,7 @@ def _merge_sig(old, new, alpha=0.15):
 
 
 class Track:
+    """One person followed across frames, with their patient binding if they have one."""
     _next_id = 1
 
     def __init__(self, info, landmarks, now):
@@ -166,6 +176,7 @@ class Track:
 
 
 class PersonTracker:
+    """Keeps a stable track id for each person across frames and attaches the patient id when a tag is seen."""
     def __init__(self, gate_scales=3.0, max_missing_sec=1.5, reid_window_sec=120.0,
                  reid_max_cost=0.5, reid_margin=0.08, tag_max_dist_scales=2.0):
         self.gate_scales = gate_scales
@@ -183,6 +194,7 @@ class PersonTracker:
         return ev
 
     def update(self, poses, frame_shape, tags=(), now=0.0):
+        """Match this frame's poses to existing tracks, start tracks for new people, apply tag sightings and drop people who have been gone too long. Returns the people matched in this frame."""
         infos = []
         for lms in poses:
             info = body_info(lms, frame_shape)
@@ -237,6 +249,7 @@ class PersonTracker:
 
         return [self._public(t, now) for t in self.tracks if t.matched_now]
 
+    # How long a tag sighting keeps counting as a direct identification
     TAG_FRESH_SEC = 2.0
 
     def _public(self, t, now):
@@ -250,6 +263,7 @@ class PersonTracker:
         return {t.patient_id for t in self.tracks if t.patient_id is not None}
 
     def _try_reid(self, track, info, frame_shape, now):
+        """Give a new track the identity of a recently lost one, but only when it is a clear best match."""
         if not self._lost:
             return
         diag = math.hypot(frame_shape[0], frame_shape[1])
@@ -269,6 +283,7 @@ class PersonTracker:
             self._set_patient(track, best["patient_id"], "reid")  # also clears the lost entry
 
     def _set_patient(self, track, patient_id, source):
+        """Bind a patient to a track and record the change. Any other track holding the same patient is released first."""
         if track.patient_id == patient_id and track.id_source == source:
             return
         for other in self.tracks:  # one patient <-> one track at a time
@@ -281,6 +296,7 @@ class PersonTracker:
             self._events.append({"track_id": track.id, "patient_id": patient_id, "source": source})
 
     def _apply_tag(self, tag, infos, pose_track, now):
+        """Assign a tag to the nearest person. Tags far from everyone, or about equally close to two people, are ignored."""
         cx, cy = tag["center"]
         scored = []
         for j, (_, info) in enumerate(infos):

@@ -12,11 +12,13 @@ import { Button } from '../../../ui/Button';
 import { Alert, Badge, Card, Spinner } from '../../../ui/display';
 import { NumberField } from '../../../ui/fields';
 
+/** Scales the printed name down for long names so it stays on one line. */
 function nameSize(name: string, base: number): number {
   const factor = name.length <= 10 ? 1 : name.length <= 14 ? 0.82 : name.length <= 19 ? 0.64 : 0.5;
   return Math.round(base * factor * 100) / 100;
 }
 
+/** Shows the patient's printable AprilTag, whether the hub knows about it, and the option to change the tag number. */
 export function TagTab({ patient, onChanged }: { patient: Patient; onChanged: () => void }) {
   const { patients } = useData();
   const { api, status } = useHub();
@@ -28,14 +30,17 @@ export function TagTab({ patient, onChanged }: { patient: Patient; onChanged: ()
   const [busy, setBusy] = useState(false);
 
   const tagId = patient.tagId;
+  // Asks the hub what it has stored for this tag so the page can tell if the camera is out of date
   const onHub = useAsync(async () => (tagId === null ? null : ((await api.getTags())[String(tagId)] ?? null)), [api, tagId, status]);
 
   if (tagId === null) {
     return <Alert tone="info" title="No tag">Archived patients do not wear a tag.</Alert>;
   }
 
+  // The hub entry has to match both the patient code and the board name, otherwise it is stale
   const registered = onHub.data?.patient_id === patient.code && onHub.data?.display_name === patient.boardName;
 
+  // Pushes the current tag list to the hub, then rechecks what the hub holds
   const sendToHub = async () => {
     setBusy(true);
     await syncTags({});
@@ -43,6 +48,7 @@ export function TagTab({ patient, onChanged }: { patient: Patient; onChanged: ()
     setBusy(false);
   };
 
+  // Changing a tag also resyncs the hub, because the old number must stop identifying this patient
   const reassign = async () => {
     if (newTag === null) return;
     setBusy(true);

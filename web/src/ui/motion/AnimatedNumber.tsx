@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { gsap, motionAllowed } from './gsap';
 
+/** A number that counts up or down to a new value. The first value, and reduced motion, show the number straight away. */
 export function AnimatedNumber({ value, className = '' }: { value: number; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const shown = useRef<number | null>(null);

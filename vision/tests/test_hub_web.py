@@ -1,3 +1,4 @@
+"""Tests for the tag registry on the hub and for how the camera uses it."""
 import os, sys, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -8,6 +9,7 @@ from client import CameraPipeline
 
 
 def client(**kw):
+    """A test client and the hub core behind it."""
     app = create_app(HubCore(), **kw)
     return app.test_client(), app.config["core"]
 
@@ -63,11 +65,13 @@ def test_registry_changes_are_persisted_across_restart():
 
 
 class FakeLink:
+    """A hub link that only holds a state dict."""
     def __init__(self, state): self.state = state; self.camera_id = "cam"
     def assigned_exercise(self, *a): return None
 
 
 def mapped(state, tag_id, tag_map=None):
+    """Patient ids that the camera pipeline gives to a tag."""
     p = CameraPipeline({}, None, FakeLink(state), tag_map=tag_map)
     out = p._map_tags([{"tag_id": tag_id, "center": (0, 0), "size": 10}])
     return [t["patient_id"] for t in out]

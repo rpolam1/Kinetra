@@ -21,6 +21,7 @@ const HUB_LABEL: Record<HubStatus, { text: string; dot: string }> = {
   unauthorized: { text: 'Hub needs a key', dot: 'bg-amber-400' },
 };
 
+/** The page frame with the side navigation, hub status and account links. On small screens the navigation becomes a strip across the top. */
 export function AppShell({ children }: { children: ReactNode }) {
   useAutoTagSync();
   const { user, signOut, demo, can } = useAuth();
@@ -35,6 +36,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: '/patients', label: 'Patients', icon: 'patients' },
     { to: '/session', label: 'Live session', icon: 'session' },
     { to: '/board', label: 'Board', icon: 'board' },
+    // The Team page is only listed for people who can manage users
     ...(can('user:manage') ? [{ to: '/admin/users', label: 'Team', icon: 'team' as const, badge: awaitingCount }] : []),
     { to: '/settings', label: 'Settings', icon: 'settings' },
   ];

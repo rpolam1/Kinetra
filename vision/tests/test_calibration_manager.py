@@ -1,3 +1,4 @@
+"""Tests for the hub side calibration manager: validation, claiming, deduplication and template building."""
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from formcheck.paths import EXERCISES_PATH
@@ -11,6 +12,7 @@ CONFIGS = json.load(open(EXERCISES_PATH))
 
 
 def real_reps(n=5, seed=1):
+    """Reps in the shape a camera uploads them, made from simulated good squats."""
     rng = random.Random(seed)
     reps = T.segment([T.good(rng) for _ in range(n)], seed=seed)
     out = []
@@ -23,6 +25,7 @@ def real_reps(n=5, seed=1):
 
 
 def started(mgr=None, camera="cam1", **kw):
+    """A manager with one job that a camera has already claimed."""
     mgr = mgr or CalibrationManager(CONFIGS)
     job = mgr.create("P-0001", "goblet_squat", **kw)
     mgr.claim(job["id"], camera)
@@ -30,6 +33,7 @@ def started(mgr=None, camera="cam1", **kw):
 
 
 def raises(code, fn, *a, **k):
+    """Check that the call raises a CalibrationError with the given code."""
     try:
         fn(*a, **k)
     except CalibrationError as e:

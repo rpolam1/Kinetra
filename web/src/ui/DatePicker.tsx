@@ -23,6 +23,7 @@ import {
 
 type View = 'days' | 'months' | 'years';
 
+/** Start view years suits dates far in the past, such as a date of birth. Anchor year sets where the list of years opens. */
 export interface DatePickerProps {
   label: string;
   name: string;
@@ -38,9 +39,11 @@ export interface DatePickerProps {
   anchorYear?: number;
 }
 
+// Fixed sizes let the calendar be placed before it has been measured
 const POPOVER_WIDTH = 304;
 const POPOVER_HEIGHT = 372;
 
+/** A date field that can be typed in or picked from a calendar. The value is a YYYY-MM-DD string, or empty. */
 export function DatePicker({ label, name, value, onChange, min, max, error, hint, required, disabled, startView = 'days', anchorYear }: DatePickerProps) {
   const id = useId();
   const today = todayIso();
@@ -157,12 +160,14 @@ interface PopoverProps {
   onClose: () => void;
 }
 
+/** The calendar. It is drawn in a portal with fixed positioning, so a parent that hides overflow cannot clip it. Arrow keys move by day and week, the page keys move by month, and Shift with them moves by year. */
 function CalendarPopover({ label, anchor, ignore, value, today, min, max, startView, anchorYear, onPick, onClear, onClose }: PopoverProps) {
   const root = useRef<HTMLDivElement>(null);
   const parsedValue = parseIso(value);
   const fallbackIso = clampIso(anchorYear !== undefined ? toIso(anchorYear, 0, 1) : today, min, max);
   const [cursor, setCursor] = useState(parsedValue ? value : fallbackIso);
   const [view, setView] = useState<View>(!parsedValue && startView === 'years' ? 'years' : 'days');
+  // Focus only follows the highlighted day after a key press, so using the month arrows with the mouse does not move it
   const [keyboard, setKeyboard] = useState(true);
   const [pos, setPos] = useState({ left: 0, top: 0 });
   const cur = parseIso(cursor) ?? parseIso(fallbackIso)!;
@@ -170,6 +175,7 @@ function CalendarPopover({ label, anchor, ignore, value, today, min, max, startV
   const place = useCallback(() => {
     const rect = anchor.current?.getBoundingClientRect();
     if (!rect) return;
+    // The calendar opens above the field when there is no room below it
     const below = rect.bottom + 6;
     const top = below + POPOVER_HEIGHT > window.innerHeight && rect.top - POPOVER_HEIGHT - 6 > 0 ? rect.top - POPOVER_HEIGHT - 6 : below;
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 8));
@@ -190,6 +196,7 @@ function CalendarPopover({ label, anchor, ignore, value, today, min, max, startV
     if (root.current && motionAllowed()) gsap.fromTo(root.current, { opacity: 0, y: -6, scale: 0.98 }, { opacity: 1, y: 0, scale: 1, duration: 0.18, ease: 'power2.out' });
   }, []);
 
+  // A click outside the calendar closes it, but clicks on the field or its button are left to those controls
   useEffect(() => {
     const down = (e: PointerEvent) => {
       const target = e.target as Node;
@@ -247,6 +254,7 @@ function CalendarPopover({ label, anchor, ignore, value, today, min, max, startV
   const pageStart = yearPageStart(cur.year);
   const selectYear = (year: number) => {
     setKeyboard(false);
+    // The day is capped at 28 so that every month has it
     setCursor(clampIso(toIso(year, cur.month, Math.min(cur.day, 28)), min, max));
     setView('months');
   };

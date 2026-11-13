@@ -10,11 +10,13 @@ import { MemoryCalibrationRepository, MemorySessionRepository } from './memory/M
 import { MemoryStore } from './memory/MemoryStore';
 import type { KeyValueStorage } from './memory/MemoryStore';
 
+/** Tests can pass a backend and a storage object instead of using the defaults. */
 export interface DataLayerOptions {
   backend?: DataBackend;
   storage?: KeyValueStorage;
 }
 
+/** Build the data layer. The Firebase code is only loaded when it is chosen, so the memory version does not download it. */
 export async function createDataLayer(options: DataLayerOptions = {}): Promise<DataLayer> {
   const backend = options.backend ?? env.dataBackend;
 

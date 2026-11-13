@@ -6,12 +6,14 @@ import { Card } from '../../ui/display';
 import { TextField } from '../../ui/fields';
 import { TrackingBadge } from './TrackingBadge';
 
+/** The props for the picker. Exercises already prescribed are passed in so they can be shown as added. */
 interface ExercisePickerProps {
   existingIds: ReadonlySet<string>;
   onAdd: (exercise: ExerciseDefinition) => void;
   onClose: () => void;
 }
 
+/** A searchable list of the exercise library with a category filter. */
 export function ExercisePicker({ existingIds, onAdd, onClose }: ExercisePickerProps) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<ExerciseCategory | 'all'>('all');

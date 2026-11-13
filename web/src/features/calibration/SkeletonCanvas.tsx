@@ -4,8 +4,10 @@ import { drawSkeleton } from './skeleton';
 import type { Palette } from './skeleton';
 
 const PALETTE: Palette = { bone: '#6cbfae', joint: '#f8f6f1', background: '#0b1a20' };
+// The canvas has a fixed drawing size and the page scales it, so line widths stay in proportion
 const BASE_WIDTH = 640;
 
+/** Draws a skeleton from normalised landmarks. The aspect ratio is limited to a sensible range, so a bad value from the hub cannot make a huge or flat canvas. */
 export function SkeletonCanvas({ landmarks, aspect, label, className = '' }: { landmarks: readonly Landmark[] | null; aspect: number; label: string; className?: string }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const safeAspect = aspect > 0.2 && aspect < 5 ? aspect : 4 / 3;

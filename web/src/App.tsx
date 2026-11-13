@@ -25,6 +25,7 @@ import { installHoverMotion } from './ui/motion/hover';
 
 const inShell = (page: ReactNode) => <AppShell>{page}</AppShell>;
 
+/** Every page and its address. The board has no shell because it is shown on a public screen. */
 export const ROUTES: readonly RouteDef[] = [
   { pattern: '/', render: () => <Redirect to="/patients" /> },
   { pattern: '/patients', render: () => inShell(<PatientsPage />) },
@@ -37,8 +38,10 @@ export const ROUTES: readonly RouteDef[] = [
   { pattern: '/board', render: () => <BoardPage /> },
 ];
 
+// The board is shown on a screen in the room, so it needs no sign in
 const PUBLIC_PATHS: readonly string[] = ['/board'];
 
+/** Shows the sign in screen, the account status screen or the page, depending on who is signed in and whether they are approved. */
 function AuthGate({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const path = useCurrentPath();
@@ -49,6 +52,7 @@ function AuthGate({ children }: { children: ReactNode }) {
   return <AccountsProvider>{children}</AccountsProvider>;
 }
 
+/** The whole app. Providers wrap each other from the outside in: errors, messages, data, sign in and the hub. */
 export function App({ createLayer }: { createLayer?: () => Promise<DataLayer> }) {
   useEffect(() => installHoverMotion(), []);
   return (

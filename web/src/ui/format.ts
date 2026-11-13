@@ -1,3 +1,4 @@
+/** A short time since, such as 5 min ago. After two weeks it switches to a date. */
 export function timeAgo(then: number, now: number = Date.now()): string {
   const seconds = Math.max(0, Math.round((now - then) / 1000));
   if (seconds < 45) return 'just now';

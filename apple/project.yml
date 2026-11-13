@@ -1,0 +1,105 @@
+# The Xcode project is generated from this file by XcodeGen, so edit this and not the project file
+name: Kinetra
+options:
+  bundleIdPrefix: org.kinetra
+  # The oldest iOS and watchOS versions the app runs on
+  deploymentTarget:
+    iOS: "17.0"
+    watchOS: "10.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    # Left empty on purpose. The developer picks their own team in Xcode when signing.
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+# The phone app, the watch app, and the unit tests
+targets:
+  Kinetra:
+    type: application
+    platform: iOS
+    sources:
+      - Kinetra
+      - Shared
+    # The phone app embeds the watch app, so installing one installs the other
+    dependencies:
+      - target: KinetraWatch
+    # HealthKit is needed on both devices, the phone to start the workout and the watch to read heart rate
+    entitlements:
+      path: Kinetra/Kinetra.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+    info:
+      path: Kinetra/Info.plist
+      properties:
+        CFBundleDisplayName: Kinetra
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSHealthShareUsageDescription: Kinetra reads heart rate from the Apple Watch workout so the technician can see how hard you are working.
+        NSHealthUpdateUsageDescription: Kinetra starts a workout on your Apple Watch so heart rate can be measured during exercise.
+        NSLocalNetworkUsageDescription: Kinetra connects to the exercise hub on your local network.
+        # Plain http is allowed on the local network only, because the hub runs on the clinic Wi-Fi without a certificate
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.kinetra.app
+        TARGETED_DEVICE_FAMILY: "1"
+        # No app icon is set here yet
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+  KinetraWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - KinetraWatch
+      - Shared
+    # The watch app runs on its own and is paired with the phone app by its bundle id
+    entitlements:
+      path: KinetraWatch/KinetraWatch.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+    info:
+      path: KinetraWatch/Info.plist
+      properties:
+        CFBundleDisplayName: Kinetra
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: org.kinetra.app
+        # Lets the app keep running during a workout with the wrist down
+        WKBackgroundModes:
+          - workout-processing
+        NSHealthShareUsageDescription: Kinetra reads your heart rate during the workout and sends it to the exercise hub.
+        NSHealthUpdateUsageDescription: Kinetra records a workout session so heart rate is measured continuously.
+        NSLocalNetworkUsageDescription: Kinetra connects to the exercise hub on your local network.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.kinetra.app.watchkitapp
+  # The tests compile the shared code directly, so they do not need the app to run
+  KinetraTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - KinetraTests
+      - Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.kinetra.tests
+        GENERATE_INFOPLIST_FILE: YES
+# One scheme for the phone, which also builds the watch app, and one for the watch alone
+schemes:
+  Kinetra:
+    build:
+      targets:
+        Kinetra: all
+        KinetraWatch: all
+    test:
+      targets:
+        - KinetraTests
+  KinetraWatch:
+    build:
+      targets:
+        KinetraWatch: all

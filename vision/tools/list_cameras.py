@@ -7,6 +7,7 @@ import cv2
 
 
 def probe(index, backend=None):
+    """Open one camera and return a frame from it, or None when it will not open."""
     cap = cv2.VideoCapture(index) if backend is None else cv2.VideoCapture(index, backend)
     if not cap.isOpened():
         cap.release()
@@ -22,17 +23,19 @@ def probe(index, backend=None):
 
 
 def main():
+    """Probe each camera number and save a still from every one that works."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--max", type=int, default=6, help="highest camera number to try (exclusive)")
     args = ap.parse_args()
 
     backends = [("default", None)]
     if sys.platform.startswith("win"):
-        backends.append(("directshow", cv2.CAP_DSHOW))
+        backends = [("directshow", cv2.CAP_DSHOW), ("default", None)]
 
     for name, backend in backends:
         print(f"--- backend: {name}")
         for i in range(args.max):
+            print(f"trying camera {i}...", flush=True)  # if it freezes here, this camera hangs this driver
             frame = probe(i, backend)
             if frame is None:
                 print(f"camera {i}: cannot open, or gives no picture")

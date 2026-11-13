@@ -17,6 +17,7 @@ interface HubContextValue {
 
 const HubContext = createContext<HubContextValue | null>(null);
 
+/** The hub client, its connection status and the saved hub settings. */
 export function useHub(): HubContextValue {
   const value = useContext(HubContext);
   if (!value) throw new Error('useHub must be used inside <HubProvider>');
@@ -25,9 +26,11 @@ export function useHub(): HubContextValue {
 
 const POLL_MS = 10_000;
 
+/** Holds the hub client and checks the hub every few seconds, so the whole app can show whether it is reachable. */
 export function HubProvider({ children, pollMs = POLL_MS }: { children: ReactNode; pollMs?: number }) {
   const [settings, setSettings] = useState<HubSettings>(() => loadHubSettings());
   const [status, setStatus] = useState<HubStatus>('checking');
+  // The key is read through a ref, so changing it does not create a new client
   const keyRef = useRef(settings.apiKey);
   keyRef.current = settings.apiKey;
 

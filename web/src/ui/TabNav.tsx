@@ -8,6 +8,7 @@ export interface TabItem {
   to: string;
 }
 
+/** Tabs with an underline that slides to the active tab. */
 export function TabNav({ tabs, activeId, label }: { tabs: readonly TabItem[]; activeId: string; label: string }) {
   const nav = useRef<HTMLElement>(null);
   const line = useRef<HTMLSpanElement>(null);
@@ -30,6 +31,7 @@ export function TabNav({ tabs, activeId, label }: { tabs: readonly TabItem[]; ac
       }
     };
     place();
+    // The line is placed again when the layout changes size
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => place());
     observer?.observe(root);
     return () => observer?.disconnect();

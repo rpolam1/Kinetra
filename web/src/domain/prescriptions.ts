@@ -6,6 +6,7 @@ import type {
   PrescriptionContent,
 } from './types';
 
+/** A starting cardio block that uses the usual intensity from the dose guidelines. */
 export function defaultCardio(): CardioBlock {
   return {
     machine: 'recumbent_bike',
@@ -18,10 +19,12 @@ export function defaultCardio(): CardioBlock {
   };
 }
 
+/** A plan with no exercises. */
 export function emptyContent(): PrescriptionContent {
   return { exercises: [], cardio: defaultCardio() };
 }
 
+/** A new plan entry that uses the exercise's own defaults. Rep exercises get a rep target and progress by rule, and the others are progressed by hand. */
 export function newPrescribedExercise(def: ExerciseDefinition): PrescribedExercise {
   const rep = def.tracking === 'scored' || def.tracking === 'count_only';
   return {
@@ -60,6 +63,7 @@ function sameCardio(a: CardioBlock, b: CardioBlock): boolean {
   );
 }
 
+/** Whether two plans have the same exercises, in the same order, with the same doses and the same cardio. */
 export function contentEquals(a: PrescriptionContent, b: PrescriptionContent): boolean {
   return (
     sameCardio(a.cardio, b.cardio) &&
@@ -76,6 +80,7 @@ export interface ContentDiff {
   cardioChanged: boolean;
 }
 
+/** Compare two versions of a plan. With no earlier version everything counts as added. */
 export function diffContent(prev: PrescriptionContent | null, next: PrescriptionContent): ContentDiff {
   const before = new Map((prev?.exercises ?? []).map((e) => [e.exerciseId, e]));
   const after = new Map(next.exercises.map((e) => [e.exerciseId, e]));
@@ -95,6 +100,7 @@ export function diffContent(prev: PrescriptionContent | null, next: Prescription
   };
 }
 
+/** Short text for the history list, such as 2 added, reordered. */
 export function describeDiff(diff: ContentDiff): string {
   const parts: string[] = [];
   if (diff.added.length) parts.push(`${diff.added.length} added`);
@@ -105,6 +111,7 @@ export function describeDiff(diff: ContentDiff): string {
   return parts.length ? parts.join(', ') : 'no changes';
 }
 
+/** A copy of the list with one item moved. A move that is out of range gives an unchanged copy. */
 export function moveItem<T>(items: readonly T[], from: number, to: number): T[] {
   if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) {
     return [...items];

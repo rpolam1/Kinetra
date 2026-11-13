@@ -3,6 +3,7 @@ import { useHub } from '../providers/HubProvider';
 import type { StreamState } from '../../services/hub/sse';
 import type { CalibrationJob, LiveSnapshot, SkeletonFrame } from '../../services/hub/types';
 
+/** Parse JSON from the stream, or return null when it is malformed. */
 function parse<T>(data: string): T | null {
   try {
     return JSON.parse(data) as T;
@@ -11,6 +12,7 @@ function parse<T>(data: string): T | null {
   }
 }
 
+/** The live board snapshot from the hub, kept current by the event stream. */
 export function useLiveSnapshot(enabled = true): { snapshot: LiveSnapshot | null; state: StreamState } {
   const { api, settings } = useHub();
   const [snapshot, setSnapshot] = useState<LiveSnapshot | null>(null);
@@ -35,6 +37,7 @@ export function useLiveSnapshot(enabled = true): { snapshot: LiveSnapshot | null
   return { snapshot, state };
 }
 
+/** Updates for one calibration job, with its state and the live skeleton. Events for other jobs are ignored. */
 export function useCalibrationStream(jobId: string | null): {
   job: CalibrationJob | null;
   frame: SkeletonFrame | null;
@@ -44,6 +47,7 @@ export function useCalibrationStream(jobId: string | null): {
   const [job, setJob] = useState<CalibrationJob | null>(null);
   const [frame, setFrame] = useState<SkeletonFrame | null>(null);
   const [state, setState] = useState<StreamState>('connecting');
+  // A ref is used so a message that arrives after the job changed can be recognised as stale
   const latestJob = useRef<string | null>(jobId);
   latestJob.current = jobId;
 

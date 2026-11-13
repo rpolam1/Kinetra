@@ -1,5 +1,6 @@
 import type { AccountStatus, Role, UserAccount } from './types';
 
+/** Roles from least to most access. The order is used to work out which upgrades exist. */
 export const ROLES: readonly Role[] = ['volunteer', 'instructor', 'admin'];
 
 export interface RoleInfo {
@@ -8,6 +9,7 @@ export interface RoleInfo {
   can: readonly string[];
 }
 
+/** Text that explains each role to the person choosing or approving it. */
 export const ROLE_INFO: Readonly<Record<Role, RoleInfo>> = {
   volunteer: {
     label: 'Volunteer',
@@ -26,6 +28,7 @@ export const ROLE_INFO: Readonly<Record<Role, RoleInfo>> = {
   },
 };
 
+/** Roles a person can ask for at sign up. Admin cannot be requested. */
 export const SIGNUP_ROLES: readonly Role[] = ['volunteer', 'instructor'];
 
 export const STATUS_LABELS: Readonly<Record<AccountStatus, string>> = {
@@ -46,6 +49,7 @@ export interface SignUpInput {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+/** Check the sign up form. Returns one message per field with a problem, and nothing when the form is fine. */
 export function validateSignUp(input: SignUpInput & { confirmPassword?: string }): Record<string, string> {
   const errors: Record<string, string> = {};
   if (input.displayName.trim().length < 2) errors.displayName = 'Enter your full name';
@@ -57,6 +61,7 @@ export function validateSignUp(input: SignUpInput & { confirmPassword?: string }
   return errors;
 }
 
+/** Roles above the current one, which the person can ask for. */
 export function upgradeOptions(role: Role | null): Role[] {
   if (role === null) return [];
   return ROLES.filter((r) => ROLES.indexOf(r) > ROLES.indexOf(role));
@@ -64,11 +69,13 @@ export function upgradeOptions(role: Role | null): Role[] {
 
 export type AwaitingKind = 'new' | 'upgrade';
 
+/** Whether the account is waiting on a new account approval, a role upgrade or nothing. */
 export function awaitingKind(account: Pick<UserAccount, 'awaiting' | 'status'>): AwaitingKind | null {
   if (!account.awaiting) return null;
   return account.status === 'pending' ? 'new' : 'upgrade';
 }
 
+/** Accounts that need a decision come first, oldest request first, then everyone else by name. */
 export function sortAccounts(accounts: readonly UserAccount[]): UserAccount[] {
   return [...accounts].sort((a, b) => {
     if (a.awaiting !== b.awaiting) return a.awaiting ? -1 : 1;
@@ -77,6 +84,7 @@ export function sortAccounts(accounts: readonly UserAccount[]): UserAccount[] {
   });
 }
 
+/** One line that says what the person is asking for. */
 export function requestSummary(account: Pick<UserAccount, 'awaiting' | 'status' | 'requestedRole' | 'role'>): string {
   const kind = awaitingKind(account);
   const wanted = account.requestedRole ? ROLE_INFO[account.requestedRole].label.toLowerCase() : 'a role';

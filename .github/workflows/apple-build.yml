@@ -1,0 +1,103 @@
+name: apple build
+
+# Runs when the Apple code changes, and can be started by hand from the Actions tab
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "apple/**"
+      - ".github/workflows/apple-build.yml"
+  pull_request:
+    paths:
+      - "apple/**"
+
+# The build only needs to read the repo
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Xcode only runs on macOS runners
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apple
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: xcode version
+        run: xcodebuild -version
+
+      # The Xcode project is generated from project.yml, so it is not kept in the repo
+      - name: install xcodegen
+        run: brew install xcodegen
+
+      - name: generate project
+        run: xcodegen generate
+
+      # The unit tests need a simulator, so one is picked from whatever the runner has installed
+      - name: pick an iphone simulator
+        id: sim
+        run: |
+          UDID="$(xcrun simctl list devices available iPhone | grep -Eo '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}' | head -1)"
+          test -n "$UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      # Signing is switched off because the build only checks that the code compiles
+      - name: build iphone app with embedded watch app
+        run: |
+          set -o pipefail
+          xcodebuild build -project Kinetra.xcodeproj -scheme Kinetra \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/build-ios.log"
+
+      # The watch app is built on its own as well, so a watch only error is easy to find
+      - name: build watch app
+        run: |
+          set -o pipefail
+          xcodebuild build -project Kinetra.xcodeproj -scheme KinetraWatch \
+            -destination "generic/platform=watchOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/build-watch.log"
+
+      - name: unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test -project Kinetra.xcodeproj -scheme Kinetra \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/test.log"
+
+      # Pulls the compiler errors out of the logs and onto the run summary
+      - name: summarize compiler errors
+        if: failure()
+        run: |
+          {
+            echo "### Compiler errors"
+            echo '```'
+            grep -hE "error:" "$RUNNER_TEMP"/*.log | sort -u | head -80 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Logs are kept even when the run fails
+      - name: upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-build-logs
+          path: ${{ runner.temp }}/*.log
+          if-no-files-found: ignore
+
+      # The packaged project opens straight in Xcode, without running xcodegen first
+      - name: package ready to open xcode project
+        if: success()
+        run: |
+          mkdir -p "$RUNNER_TEMP/pkg"
+          rsync -a --exclude build --exclude DerivedData --exclude xcuserdata ./ "$RUNNER_TEMP/pkg/Kinetra-Apple/"
+
+      - name: upload xcode project
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kinetra-Xcode-project
+          path: ${{ runner.temp }}/pkg

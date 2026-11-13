@@ -1,3 +1,4 @@
+"""Checks that the exercise library file is complete and that every trackable exercise can be used."""
 import json, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from formcheck.paths import EXERCISES_PATH
@@ -25,6 +26,8 @@ def test_every_entry_is_well_formed():
             assert e["mode"] == "manual" and "angle_joint" not in e, eid
         if "rest_direction" in e:
             assert e["rest_direction"] in ("high", "low"), eid
+        if e["tracking"] == "timed":
+            assert e.get("rest_direction") in ("high", "low"), f"{eid}: a hold needs a rest direction"
 
 
 def test_every_category_from_the_clinic_list_is_covered():

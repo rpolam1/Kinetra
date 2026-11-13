@@ -8,6 +8,7 @@ interface IconProps {
   label?: string;
 }
 
+/** An inline SVG icon from the icon set. Without a label it is hidden from screen readers, and with one it is announced as an image. */
 export function Icon({ name, className = '', spin = false, label }: IconProps) {
   const [width, height, , , path] = ICONS[name].icon;
   const paths = Array.isArray(path) ? path : [path];

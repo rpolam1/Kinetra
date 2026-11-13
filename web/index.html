@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- The browser bar colour on phones, the same dark teal as the app header -->
     <meta name="theme-color" content="#0b1a20" />
+    <!-- The icon is inlined as a data URL so the page needs no extra file request -->
     <link
       rel="icon"
       type="image/svg+xml"
@@ -13,6 +15,7 @@
   </head>
   <body class="antialiased">
     <div id="root"></div>
+    <!-- The app mounts here, and Vite builds from this entry file -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

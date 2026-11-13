@@ -9,13 +9,16 @@ import type { AuthService } from '../repositories';
 import { newProfile, readAccount, toAuthUser } from './accountMapping';
 import { mapFirebaseError } from './errors';
 
+/** What the app sees for someone who is signed in but has no readable profile. They have no role, so they can do nothing. */
 function signedInWithoutProfile(user: User): AuthUser {
   return { uid: user.uid, email: user.email ?? '', displayName: user.displayName ?? '', role: null, status: 'pending', requestedRole: null };
 }
 
+/** Signs in with Firebase and reads the person's role from their profile document in the users collection. */
 export class FirebaseAuthService implements AuthService {
   readonly demo = false;
   private user: AuthUser | null = null;
+  // Set while a profile is being written, so the listener does not write a second one
   private creatingProfile = false;
   private stopWatchingProfile: (() => void) | null = null;
 
@@ -28,6 +31,7 @@ export class FirebaseAuthService implements AuthService {
     return this.user;
   }
 
+  /** Sign in. The role arrives through subscribe, so it may not be set yet when this returns. */
   async signIn(email: string, password: string): Promise<AuthUser> {
     try {
       await signInWithEmailAndPassword(this.auth, email.trim(), password);
@@ -45,6 +49,7 @@ export class FirebaseAuthService implements AuthService {
     return this.user ?? signedInWithoutProfile(this.auth.currentUser as User);
   }
 
+  /** Create the account and a pending profile. The person has no access until an admin approves them. */
   async signUp(input: SignUpInput): Promise<AuthUser> {
     const errors = validateSignUp(input);
     const first = Object.values(errors)[0];
@@ -70,6 +75,7 @@ export class FirebaseAuthService implements AuthService {
     }
   }
 
+  /** Ask for a higher role. An admin has to approve it. */
   async requestRole(role: Role): Promise<void> {
     const me = this.auth.currentUser;
     if (!me) throw new DataError('permission', 'Sign in first');
@@ -87,6 +93,7 @@ export class FirebaseAuthService implements AuthService {
     this.user = null;
   }
 
+  /** Call the listener whenever the signed in person or their profile changes. Returns a function that stops listening. */
   subscribe(listener: (user: AuthUser | null) => void): () => void {
     const stopAuth = onAuthStateChanged(this.auth, (fbUser) => {
       this.stopWatchingProfile?.();
@@ -122,6 +129,7 @@ export class FirebaseAuthService implements AuthService {
     };
   }
 
+  /** File a volunteer request for an account that was made outside the app, such as in the Firebase console. A failure is ignored because the next sign in tries again. */
   private async createMissingProfile(fbUser: User): Promise<void> {
     this.creatingProfile = true;
     try {

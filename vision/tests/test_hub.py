@@ -1,3 +1,4 @@
+"""Tests for the hub's HTTP API and its in-memory state, using Flask's test client."""
 import os
 import sys
 import tempfile
@@ -8,17 +9,20 @@ from server.hub import HubCore, create_app
 
 
 def rep(eid, t0, t1, patient="p1", track="A-1", score=90.0, ex="goblet_squat"):
+    """A rep event as a camera sends it."""
     return {"type": "rep", "event_id": eid, "patient_id": patient, "track_key": track,
             "exercise": ex, "t_start": t0, "t_end": t1, "score": score,
             "label": "good_form", "coverage": 1.0, "issues": []}
 
 
 def client(core=None, key=None):
+    """A test client and the hub core behind it."""
     app = create_app(core or HubCore(), api_key=key)
     return app.test_client(), app.config["core"]
 
 
 def post(c, cam, events, headers=None):
+    """Post events to the hub as one camera."""
     return c.post("/api/events", json={"camera_id": cam, "events": events}, headers=headers or {})
 
 

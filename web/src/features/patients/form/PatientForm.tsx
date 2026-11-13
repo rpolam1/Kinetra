@@ -22,8 +22,10 @@ interface PatientFormProps {
   layout?: 'steps' | 'single';
 }
 
+// The focus waits a moment so the error messages have been drawn before the first one is found
 const focusFirstInvalid = () => setTimeout(() => document.querySelector<HTMLElement>('[data-field][aria-invalid="true"]')?.focus(), 30);
 
+/** The patient form. The steps layout is for new patients and shows one step at a time, and the single layout shows every section on one page for editing. */
 export function PatientForm({ initial, submitLabel, onSubmit, cancelTo, disabled, layout = 'single' }: PatientFormProps) {
   const form = usePatientForm(initial, onSubmit);
   const { data, allErrors, saving, submitError, update, save } = form;

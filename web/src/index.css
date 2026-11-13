@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 
+/* The theme replaces the stock Tailwind palettes. Slate is a warm grey so the app does not look cold and blue. */
 @theme static {
   --font-sans: ui-sans-serif, 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
   --font-display: 'Segoe UI Variable Display', 'Segoe UI Variable Text', ui-sans-serif, 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
@@ -17,6 +18,7 @@
   --color-slate-900: #1b1a17;
   --color-slate-950: #0f0e0c;
 
+  /* Teal is the brand colour */
   --color-teal-50: #eaf6f3;
   --color-teal-100: #cdebe4;
   --color-teal-200: #a0d8cb;
@@ -29,6 +31,7 @@
   --color-teal-900: #0e3a35;
   --color-teal-950: #07231f;
 
+  /* Ink is the dark blue green used for the header and the TV board */
   --color-ink-50: #e9eff0;
   --color-ink-100: #c9d6d9;
   --color-ink-200: #9fb4ba;
@@ -41,16 +44,19 @@
   --color-ink-900: #0b1a20;
   --color-ink-950: #07110f;
 
+  /* Clay is a warm accent that is kept for rare highlights */
   --color-clay-400: #dd8a63;
   --color-clay-500: #c8643b;
   --color-clay-600: #a94f2b;
 
+  /* Shared radius and shadows so cards look the same everywhere */
   --radius-card: 0.75rem;
   --shadow-card: 0 1px 0 rgb(27 26 23 / 0.04), 0 1px 2px rgb(27 26 23 / 0.04);
   --shadow-lift: 0 1px 0 rgb(27 26 23 / 0.04), 0 10px 24px -10px rgb(27 26 23 / 0.28);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Base styles for plain HTML elements */
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
@@ -77,11 +83,13 @@
     color: var(--color-teal-950);
   }
 
+  /* The focus ring stays visible for keyboard users and is hidden for mouse clicks */
   :focus-visible {
     outline: 2px solid var(--color-teal-500);
     outline-offset: 2px;
   }
 
+  /* Only controls that can be used get the pointer cursor */
   button:not(:disabled),
   [role='button']:not([aria-disabled='true']),
   summary {
@@ -130,6 +138,7 @@
     }
   }
 
+  /* A slim scrollbar for lists that scroll inside a card */
   .scroll-thin {
     scrollbar-width: thin;
     scrollbar-color: var(--color-slate-300) transparent;

@@ -1,14 +1,17 @@
 import { DOSE_GUIDELINES, shouldProgress } from './dosage';
-import type { PatientSession } from './sessions';
+import type { ExerciseResult, PatientSession } from './sessions';
 
 const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
+// The Unix epoch fell on a Thursday, so shifting by four days makes weeks start on Monday
 const MONDAY_OFFSET_MS = 4 * DAY_MS;
 
+/** Start of the week that contains the time, in milliseconds. Weeks run Monday to Sunday in UTC. */
 export function weekStart(ms: number): number {
   return Math.floor((ms - MONDAY_OFFSET_MS) / WEEK_MS) * WEEK_MS + MONDAY_OFFSET_MS;
 }
 
+/** Totals for one week, for one exercise or for everything. */
 export interface WeekPoint {
   weekStart: number;
   sessions: number;
@@ -19,26 +22,59 @@ export interface WeekPoint {
   avgScore: number | null;
   avgRom: number | null;
   avgRepSeconds: number | null;
+  holdAttempts: number;
+  holdsCompleted: number;
+  bestHoldSeconds: number | null;
+  avgHoldSeconds: number | null;
 }
 
+/** Change from the first week to the last week. A value is null when it cannot be compared. */
 export interface MetricChange {
   goodRate: number | null;
   avgScore: number | null;
   avgRom: number | null;
   avgRepSeconds: number | null;
+  bestHoldSeconds: number | null;
+  holdsCompleted: number | null;
+  avgHoldSeconds: number | null;
 }
 
+/** Progress for one exercise, with a flag for when the patient is ready to move up. */
 export interface ExerciseProgress {
   exerciseId: string;
   name: string;
+  timed: boolean;
   sessions: number;
   reps: number;
+  holdAttempts: number;
+  holdsCompleted: number;
   weeks: WeekPoint[];
   change: MetricChange | null;
   readyToProgress: boolean;
   goodRepsLastTwo: number[];
 }
 
+export interface HeartWeek {
+  weekStart: number;
+  sessions: number;
+  avgBpm: number | null;
+  peakBpm: number | null;
+  inZoneRate: number | null;
+}
+
+export interface HeartProgress {
+  sessions: number;
+  avgBpm: number | null;
+  peakBpm: number | null;
+  inZoneRate: number | null;
+  belowRate: number | null;
+  aboveRate: number | null;
+  zoneLow: number | null;
+  zoneHigh: number | null;
+  weeks: HeartWeek[];
+}
+
+/** Everything the progress report and its charts show. */
 export interface ProgressReport {
   from: number | null;
   to: number | null;
@@ -48,6 +84,7 @@ export interface ProgressReport {
   goodRate: number | null;
   avgScore: number | null;
   weeks: WeekPoint[];
+  heart: HeartProgress | null;
   exercises: ExerciseProgress[];
 }
 
@@ -56,6 +93,7 @@ interface Sample {
   weight: number;
 }
 
+/** Mean that skips missing values and weights the rest, so a session with more reps counts for more. */
 function weightedMean(samples: readonly Sample[]): number | null {
   let total = 0;
   let sum = 0;
@@ -67,12 +105,14 @@ function weightedMean(samples: readonly Sample[]): number | null {
   return total > 0 ? sum / total : null;
 }
 
+/** Round to a number of decimal places and pass null through. */
 function round(value: number | null, places: number): number | null {
   if (value === null) return null;
   const f = 10 ** places;
   return Math.round(value * f) / f;
 }
 
+/** One exercise in one session, reduced to the numbers the charts need. */
 interface Entry {
   sessionId: string;
   at: number;
@@ -81,8 +121,19 @@ interface Entry {
   avgScore: number | null;
   avgRom: number | null;
   avgRepSeconds: number | null;
+  timed: boolean;
+  holdAttempts: number;
+  holdsCompleted: number;
+  bestHold: number | null;
+  avgHold: number | null;
 }
 
+function bestOf(values: readonly (number | null)[]): number | null {
+  const present = values.filter((v): v is number => v !== null);
+  return present.length ? Math.max(...present) : null;
+}
+
+/** Combine entries into one weekly point. Averages are weighted by reps, or by hold attempts for holds. */
 function toPoint(start: number, entries: readonly Entry[]): WeekPoint {
   const reps = entries.reduce((n, e) => n + e.reps, 0);
   const scored = entries.filter((e) => e.avgScore !== null);
@@ -98,9 +149,14 @@ function toPoint(start: number, entries: readonly Entry[]): WeekPoint {
     avgScore: round(weightedMean(entries.map((e) => ({ value: e.avgScore, weight: e.reps }))), 1),
     avgRom: round(weightedMean(entries.map((e) => ({ value: e.avgRom, weight: e.reps }))), 1),
     avgRepSeconds: round(weightedMean(entries.map((e) => ({ value: e.avgRepSeconds, weight: e.reps }))), 2),
+    holdAttempts: entries.reduce((n, e) => n + e.holdAttempts, 0),
+    holdsCompleted: entries.reduce((n, e) => n + e.holdsCompleted, 0),
+    bestHoldSeconds: bestOf(entries.map((e) => e.bestHold)),
+    avgHoldSeconds: round(weightedMean(entries.map((e) => ({ value: e.avgHold, weight: e.holdAttempts }))), 1),
   };
 }
 
+/** Group entries by week, oldest first. */
 function bucket(entries: readonly Entry[]): WeekPoint[] {
   const byWeek = new Map<number, Entry[]>();
   for (const e of entries) {
@@ -112,11 +168,17 @@ function bucket(entries: readonly Entry[]): WeekPoint[] {
     .map(([start, list]) => toPoint(start, list));
 }
 
+/** An exercise only counts when reps or holds were recorded. */
+function hasActivity(e: ExerciseResult): boolean {
+  return e.reps > 0 || (e.holdAttempts ?? 0) > 0;
+}
+
+/** Flatten sessions into entries, optionally for one exercise. */
 function entriesOf(sessions: readonly PatientSession[], exerciseId?: string): Entry[] {
   const out: Entry[] = [];
   for (const s of sessions) {
     for (const e of s.exercises) {
-      if (e.reps <= 0) continue;
+      if (!hasActivity(e)) continue;
       if (exerciseId !== undefined && e.exerciseId !== exerciseId) continue;
       out.push({
         sessionId: s.id,
@@ -126,12 +188,18 @@ function entriesOf(sessions: readonly PatientSession[], exerciseId?: string): En
         avgScore: e.avgScore,
         avgRom: e.avgRom ?? null,
         avgRepSeconds: e.avgRepSeconds ?? null,
+        timed: e.tracking === 'timed',
+        holdAttempts: e.holdAttempts ?? 0,
+        holdsCompleted: e.holdsCompleted ?? 0,
+        bestHold: e.bestHoldSeconds ?? null,
+        avgHold: e.avgHoldSeconds ?? null,
       });
     }
   }
   return out;
 }
 
+/** Weekly totals across sessions, optionally for one exercise. */
 export function weeklyProgress(sessions: readonly PatientSession[], exerciseId?: string): WeekPoint[] {
   return bucket(entriesOf(sessions, exerciseId));
 }
@@ -141,6 +209,7 @@ function difference(first: number | null, last: number | null, places: number): 
   return round(last - first, places);
 }
 
+/** Compare the first and last week. At least two weeks are needed. */
 export function changeBetween(weeks: readonly WeekPoint[]): MetricChange | null {
   if (weeks.length < 2) return null;
   const first = weeks[0]!;
@@ -150,9 +219,13 @@ export function changeBetween(weeks: readonly WeekPoint[]): MetricChange | null 
     avgScore: difference(first.avgScore, last.avgScore, 1),
     avgRom: difference(first.avgRom, last.avgRom, 1),
     avgRepSeconds: difference(first.avgRepSeconds, last.avgRepSeconds, 2),
+    bestHoldSeconds: difference(first.bestHoldSeconds, last.bestHoldSeconds, 1),
+    holdsCompleted: first.holdsCompleted === 0 && last.holdsCompleted === 0 ? null : last.holdsCompleted - first.holdsCompleted,
+    avgHoldSeconds: difference(first.avgHoldSeconds, last.avgHoldSeconds, 1),
   };
 }
 
+/** Progress for one exercise. The patient is ready to progress when the good reps of the last two sessions reach the target. */
 function exerciseProgress(sessions: readonly PatientSession[], exerciseId: string, name: string): ExerciseProgress {
   const entries = entriesOf(sessions, exerciseId).sort((a, b) => a.at - b.at);
   const weeks = bucket(entries);
@@ -162,8 +235,11 @@ function exerciseProgress(sessions: readonly PatientSession[], exerciseId: strin
   return {
     exerciseId,
     name,
+    timed: entries.some((e) => e.timed),
     sessions: perSession.size,
     reps: entries.reduce((n, e) => n + e.reps, 0),
+    holdAttempts: entries.reduce((n, e) => n + e.holdAttempts, 0),
+    holdsCompleted: entries.reduce((n, e) => n + e.holdsCompleted, 0),
     weeks,
     change: changeBetween(weeks),
     readyToProgress: shouldProgress(goodPerSession, DOSE_GUIDELINES.progressionReps),
@@ -171,8 +247,59 @@ function exerciseProgress(sessions: readonly PatientSession[], exerciseId: strin
   };
 }
 
+/** Share of time below, in and above the target zone. Sessions without a zone are left out. */
+function zoneShares(sessions: readonly PatientSession[]): { inZone: number | null; below: number | null; above: number | null } {
+  let inZone = 0;
+  let below = 0;
+  let above = 0;
+  for (const s of sessions) {
+    const h = s.heart;
+    if (!h || h.secondsInZone === null || h.secondsBelow === null || h.secondsAbove === null) continue;
+    inZone += h.secondsInZone;
+    below += h.secondsBelow;
+    above += h.secondsAbove;
+  }
+  const total = inZone + below + above;
+  if (total <= 0) return { inZone: null, below: null, above: null };
+  return { inZone: round(inZone / total, 3), below: round(below / total, 3), above: round(above / total, 3) };
+}
+
+/** Heart rate trends for sessions that have a watch reading. Null when there are none. */
+export function heartProgress(sessions: readonly PatientSession[]): HeartProgress | null {
+  const withHeart = sessions.filter((s) => s.heart && s.heart.samples > 0);
+  if (withHeart.length === 0) return null;
+  const byWeek = new Map<number, PatientSession[]>();
+  for (const s of withHeart) {
+    const key = weekStart(s.startedAt);
+    byWeek.set(key, [...(byWeek.get(key) ?? []), s]);
+  }
+  const weeks: HeartWeek[] = [...byWeek]
+    .sort((a, b) => a[0] - b[0])
+    .map(([start, list]) => ({
+      weekStart: start,
+      sessions: list.length,
+      avgBpm: round(weightedMean(list.map((s) => ({ value: s.heart!.avgBpm, weight: s.heart!.secondsTotal || 1 }))), 0),
+      peakBpm: Math.max(...list.map((s) => s.heart!.maxBpm)),
+      inZoneRate: zoneShares(list).inZone,
+    }));
+  const shares = zoneShares(withHeart);
+  const latest = [...withHeart].sort((a, b) => b.startedAt - a.startedAt).find((s) => s.heart!.zoneLow !== null);
+  return {
+    sessions: withHeart.length,
+    avgBpm: round(weightedMean(withHeart.map((s) => ({ value: s.heart!.avgBpm, weight: s.heart!.secondsTotal || 1 }))), 0),
+    peakBpm: Math.max(...withHeart.map((s) => s.heart!.maxBpm)),
+    inZoneRate: shares.inZone,
+    belowRate: shares.below,
+    aboveRate: shares.above,
+    zoneLow: latest?.heart!.zoneLow ?? null,
+    zoneHigh: latest?.heart!.zoneHigh ?? null,
+    weeks,
+  };
+}
+
+/** Build the report from saved sessions. The most recently done exercises come first, up to maxExercises. */
 export function buildProgressReport(sessions: readonly PatientSession[], maxExercises = 8): ProgressReport {
-  const counted = sessions.filter((s) => s.exercises.some((e) => e.reps > 0));
+  const counted = sessions.filter((s) => s.exercises.some(hasActivity));
   const entries = entriesOf(counted);
   const weeks = bucket(entries);
   const scored = entries.filter((e) => e.avgScore !== null);
@@ -180,7 +307,7 @@ export function buildProgressReport(sessions: readonly PatientSession[], maxExer
   const names = new Map<string, { name: string; reps: number; last: number }>();
   for (const s of counted) {
     for (const e of s.exercises) {
-      if (e.reps <= 0) continue;
+      if (!hasActivity(e)) continue;
       const known = names.get(e.exerciseId);
       names.set(e.exerciseId, {
         name: known && known.last > s.startedAt ? known.name : e.name,
@@ -201,14 +328,17 @@ export function buildProgressReport(sessions: readonly PatientSession[], maxExer
     goodRate: scoredReps > 0 ? round(scored.reduce((n, e) => n + e.good, 0) / scoredReps, 3) : null,
     avgScore: round(weightedMean(entries.map((e) => ({ value: e.avgScore, weight: e.reps }))), 1),
     weeks,
+    heart: heartProgress(counted),
     exercises: ranked.map(([id, info]) => exerciseProgress(counted, id, info.name)),
   };
 }
 
+/** Short date for a week label. UTC is used so the label matches the week boundary. */
 export function formatWeek(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
+/** A rate as a percent, or a dash when there is none. */
 export function formatPercent(rate: number | null): string {
   return rate === null ? '—' : `${Math.round(rate * 100)}%`;
 }

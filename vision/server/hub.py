@@ -1,3 +1,4 @@
+"""The hub. Collects events from cameras, combines them into reps, sets and holds, and serves the HTTP API and the built web app."""
 import argparse
 import json
 import os
@@ -13,8 +14,11 @@ import webbrowser
 from flask import Flask, Response, jsonify, request, send_from_directory
 
 from server.fusion import RepFusion, compute_sets
+from server.heart import HeartLog
+from server.holds import HoldLog
 from server.live_service import LiveService
 from server.routes_live import register_live_routes
+from server.routes_vitals import register_vitals_routes
 from server.store import Store
 from formcheck.paths import EXERCISES_PATH, WEB_DIST_DIR
 from formcheck.discovery import (DEFAULT_HTTP_PORT, DISCOVERY_PORT, HUB_HEADER,
@@ -26,12 +30,17 @@ MAX_TAG_ID = 586  # AprilTag family 36h11 has ids 0..586
 
 
 class HubCore:
+    """Holds all hub state behind one lock. Events from cameras are stored in SQLite and also applied to the in-memory fusion, hold and heart rate logs."""
 
     def __init__(self, db_path=":memory:", set_gap_seconds=DEFAULT_SET_GAP, exercise_config_path=None,
                  clock=time.time):
+        """Open the store and replay saved events so a restart does not lose the state."""
         self.lock = threading.RLock()
         self.store = Store(db_path)
         self.fusion = RepFusion()
+        self.holds = HoldLog()
+        self.heart = HeartLog(self.store)
+        self.devices = {}
         self.set_gap = float(set_gap_seconds)
         self.cameras = {}
         self.patients_seen = set()
@@ -41,10 +50,12 @@ class HubCore:
         self.live = LiveService(self, load_exercise_configs(exercise_config_path), clock)
 
     def close(self):
+        """Stop the live service and close the database."""
         self.live.close()
         self.store.close()
 
     def ingest(self, camera_id, events):
+        """Store a batch of events from one camera and apply the new ones. Returns how many were accepted, how many were duplicates and how many calibration reps were rejected."""
         accepted = duplicates = rejected = 0
         with self.lock:
             cam = self.cameras.setdefault(camera_id, {"events": 0})
@@ -62,6 +73,8 @@ class HubCore:
                     continue
                 if ev.get("type") == "rep" and not self._valid_rep(ev):
                     continue
+                if ev.get("type") == "hold" and not self._valid_hold(ev):
+                    continue
                 if self.store.insert_event(ev) is None:
                     duplicates += 1
                     continue
@@ -77,13 +90,36 @@ class HubCore:
 
     @staticmethod
     def _valid_rep(ev):
+        """A rep needs an exercise and an end time after its start."""
         try:
             return float(ev["t_end"]) > float(ev["t_start"]) and bool(ev.get("exercise"))
         except (KeyError, TypeError, ValueError):
             return False
 
+    @staticmethod
+    def _valid_hold(ev):
+        """A hold needs an exercise, an end time after its start and a length under an hour."""
+        try:
+            return (float(ev["t_end"]) > float(ev["t_start"]) and bool(ev.get("exercise"))
+                    and 0 < float(ev["seconds"]) < 3600)
+        except (KeyError, TypeError, ValueError):
+            return False
+
     def _apply(self, ev):
+        """Update the in-memory logs from one stored event."""
         kind = ev.get("type")
+        if kind == "hold":
+            if ev.get("patient_id"):
+                self.patients_seen.add(ev["patient_id"])
+            target = ev.get("target_seconds")
+            self.holds.add({
+                "camera_id": ev["camera_id"], "track_key": ev.get("track_key"), "patient_id": ev.get("patient_id"),
+                "exercise": ev["exercise"], "t_start": float(ev["t_start"]), "t_end": float(ev["t_end"]),
+                "seconds": float(ev["seconds"]),
+                "target_seconds": float(target) if isinstance(target, (int, float)) else None,
+                "completed": bool(ev.get("completed")),
+            })
+            return
         if kind == "rep":
             if ev.get("patient_id"):
                 self.patients_seen.add(ev["patient_id"])
@@ -99,8 +135,10 @@ class HubCore:
         elif kind == "bind" and ev.get("patient_id") and ev.get("track_key"):
             self.patients_seen.add(ev["patient_id"])
             self.fusion.bind(ev["track_key"], ev["patient_id"])
+            self.holds.bind(ev["track_key"], ev["patient_id"])
 
     def _exercise_summary(self, reps):
+        """Totals, sets and public reps for one patient and exercise."""
         sets = compute_sets(reps, self.set_gap)
         scores = [r["score"] for r in reps if r["score"] is not None]
         now = time.time()
@@ -120,12 +158,14 @@ class HubCore:
 
     @staticmethod
     def _public_rep(r, set_index):
+        """The fields of a combined rep that the web app is allowed to see."""
         return {"id": r["id"], "t_start": round(r["t_start"], 2), "t_end": round(r["t_end"], 2),
                 "score": r["score"], "label": r["label"], "issues": r["issues"],
                 "cameras": sorted(r["cameras"]), "n_cameras": len(r["cameras"]),
                 "partial_return": r["partial_return"], "set_index": set_index}
 
     def patient_summary(self, patient_id, exercise=None):
+        """Rep summary for one patient, grouped by exercise."""
         with self.lock:
             reps = self.fusion.canonical_reps(patient_id, exercise)
             by_ex = {}
@@ -136,6 +176,7 @@ class HubCore:
                     "exercises": {ex: self._exercise_summary(rs) for ex, rs in by_ex.items()}}
 
     def patients(self):
+        """Every patient that has reps or an assigned exercise, with their last activity."""
         with self.lock:
             ids = set(self.patients_seen) | set(self.store.assignments())
             out = []
@@ -146,11 +187,13 @@ class HubCore:
             return out
 
     def unassigned(self):
+        """Combined reps that have no patient yet."""
         with self.lock:
             reps = self.fusion.canonical_reps(None)
             return [self._public_rep(r, None) | {"exercise": r["exercise"]} for r in reps]
 
     def state(self):
+        """The hub's overall state, polled by the web app and by cameras."""
         with self.lock:
             tags = self.store.tags()
             return {"server_time": time.time(), "set_gap_seconds": self.set_gap,
@@ -163,10 +206,12 @@ class HubCore:
 
 
 def default_exercise_config_path():
+    """The bundled exercise library, or None when it is missing."""
     return EXERCISES_PATH if os.path.isfile(EXERCISES_PATH) else None
 
 
 def load_exercise_configs(path):
+    """Read the exercise library from a JSON file. Returns None when there is no file."""
     if not path or not os.path.isfile(path):
         return None
     with open(path, encoding="utf-8") as f:
@@ -174,6 +219,7 @@ def load_exercise_configs(path):
 
 
 def create_app(core=None, api_key=None, name=None, web_dir=None):
+    """Build the Flask app with all of its routes. The API key falls back to the HUB_API_KEY environment variable."""
     core = core or HubCore()
     started_at = time.time()
     hub_name = name or socket.gethostname()
@@ -183,6 +229,7 @@ def create_app(core=None, api_key=None, name=None, web_dir=None):
 
     @app.before_request
     def _auth():
+        """Require the API key on API routes when one is set."""
         if request.method == "OPTIONS" or not request.path.startswith("/api/") \
                 or request.path == "/api/health" or _TAG_IMAGE.match(request.path):
             # open on purpose: web app, health, tag images
@@ -193,6 +240,7 @@ def create_app(core=None, api_key=None, name=None, web_dir=None):
 
     @app.after_request
     def _cors(resp):  # lets a browser dashboard on another origin call us
+        """Add the headers that let browsers and clients call the hub."""
         resp.headers[HUB_HEADER] = "exercise-hub"  # lets clients recognise a hub
         resp.headers["Access-Control-Allow-Origin"] = "*"
         resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-API-Key"
@@ -257,6 +305,7 @@ def create_app(core=None, api_key=None, name=None, web_dir=None):
 
 
     register_live_routes(app, core)
+    register_vitals_routes(app, core)
 
     def _valid_tag(tag_id):
         return 0 <= tag_id <= MAX_TAG_ID
@@ -331,6 +380,7 @@ def create_app(core=None, api_key=None, name=None, web_dir=None):
 
 
 class EmbeddedHub:
+    """A hub that runs inside a camera client, so a laptop can host the hub when none is found on the network."""
 
     def __init__(self, port=DEFAULT_HTTP_PORT, db="hub.db", set_gap=DEFAULT_SET_GAP,
                  discovery_port=DISCOVERY_PORT, api_key=None, host="0.0.0.0"):
@@ -348,6 +398,7 @@ class EmbeddedHub:
         self.urls = [f"http://{ip}:{self.port}" for ip in local_ips()]
 
     def stop(self):
+        """Shut down the server and stop answering discovery probes."""
         self.responder.stop()
         self._srv.shutdown()
         self.core.live.close()
@@ -355,6 +406,8 @@ class EmbeddedHub:
 
 def host_if_alone(link, port=DEFAULT_HTTP_PORT, db="hub.db", set_gap=DEFAULT_SET_GAP,
                   log=print, **embedded_kwargs):
+    """Start a hub in this process when discovery finds none. Returns the hub, or None when another one exists or the port is taken."""
+    # A short random delay keeps laptops that start together from all hosting a hub
     time.sleep(random.uniform(0.2, 1.5))
     if link.discover(force=True):
         return None
@@ -372,6 +425,7 @@ def host_if_alone(link, port=DEFAULT_HTTP_PORT, db="hub.db", set_gap=DEFAULT_SET
 
 
 def _print_banner(port, discovery_ok, web_dir=None):
+    """Print the addresses to use and any setup hints."""
     urls = [f"http://{ip}:{port}" for ip in local_ips()] or [f"http://localhost:{port}"]
     print("=" * 64)
     print(" Exercise hub is running. Clients find it AUTOMATICALLY.")
@@ -387,6 +441,7 @@ def _print_banner(port, discovery_ok, web_dir=None):
 
 
 def _chrome_paths():
+    """Likely locations of Chrome on this platform."""
     if sys.platform.startswith("win"):
         roots = [os.environ.get(k) for k in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")]
         return [os.path.join(r, "Google", "Chrome", "Application", "chrome.exe") for r in roots if r]
@@ -396,6 +451,7 @@ def _chrome_paths():
 
 
 def open_in_browser(url):
+    """Open a page in Chrome when it is installed, or in the default browser."""
     # Chrome if it is installed, otherwise whatever the default browser is
     for path in _chrome_paths():
         if os.path.isfile(path):
@@ -405,6 +461,7 @@ def open_in_browser(url):
 
 
 def main():
+    """Start the hub from the command line."""
     ap = argparse.ArgumentParser(description="Exercise-tracking hub")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=DEFAULT_HTTP_PORT)

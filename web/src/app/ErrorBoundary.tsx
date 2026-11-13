@@ -5,6 +5,7 @@ interface State {
   error: Error | null;
 }
 
+/** Catches errors while rendering and shows a message with a reload button instead of a blank page. */
 export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   override state: State = { error: null };
 

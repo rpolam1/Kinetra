@@ -1,3 +1,4 @@
+"""Landmark names and helpers for reading points and visibility from MediaPipe results."""
 # MediaPipe pose landmark indices (0-32)
 LANDMARK_INDEX = {
     "shoulder": 11,  # left shoulder
@@ -19,6 +20,7 @@ DEFAULT_MIN_VISIBILITY = 0.6
 
 
 def get_point(landmarks, name, frame_shape):
+    """Landmark position in pixels."""
     if name not in LANDMARK_INDEX:
         raise ValueError(f"Unknown landmark name: {name}")
 
@@ -38,6 +40,7 @@ def get_visibility(landmarks, name):
 
 
 def is_visible(landmarks, name, min_visibility=DEFAULT_MIN_VISIBILITY):
+    """True when the landmark exists and its visibility is at or above the threshold."""
     try:
         return get_visibility(landmarks, name) >= min_visibility
     except (IndexError, ValueError):
@@ -45,12 +48,14 @@ def is_visible(landmarks, name, min_visibility=DEFAULT_MIN_VISIBILITY):
 
 
 def get_visible_point(landmarks, name, frame_shape, min_visibility=DEFAULT_MIN_VISIBILITY):
+    """Pixel position, or None when the landmark is not visible enough."""
     if not is_visible(landmarks, name, min_visibility):
         return None
     return get_point(landmarks, name, frame_shape)
 
 
 class PoseLandmark:
+    """Image landmark with optional world coordinates attached (metres, centred on the hips)."""
     __slots__ = ("x", "y", "z", "visibility", "wx", "wy", "wz")
 
     def __init__(self, x, y, z, visibility, wx=None, wy=None, wz=None):
@@ -59,6 +64,7 @@ class PoseLandmark:
 
 
 def attach_world(image_landmarks, world_landmarks):
+    """Pair each image landmark with its world landmark. Pairing is skipped when the counts differ."""
     world = list(world_landmarks) if world_landmarks is not None else []
     paired = len(world) == len(image_landmarks)
     out = []
@@ -72,6 +78,7 @@ def attach_world(image_landmarks, world_landmarks):
 
 
 def has_world(landmarks):
+    """True when every landmark the exercises use has world coordinates."""
     try:
         return all(getattr(landmarks[LANDMARK_INDEX[n]], "wx", None) is not None for n in LANDMARK_INDEX)
     except (IndexError, TypeError):
@@ -79,6 +86,7 @@ def has_world(landmarks):
 
 
 def get_world_point(landmarks, name, min_visibility=DEFAULT_MIN_VISIBILITY):
+    """Position in 3D from the world landmarks, or None when it is not visible or not available. Angles measured in 3D do not change with the camera view."""
     if not is_visible(landmarks, name, min_visibility):
         return None
     lm = landmarks[LANDMARK_INDEX[name]]

@@ -1,3 +1,4 @@
+/** A tiny line chart of scores over time. Missing scores are skipped, and the last point is marked. */
 export function Sparkline({ values, label }: { values: readonly (number | null)[]; label: string }) {
   const width = 160;
   const height = 40;

@@ -2,9 +2,11 @@ import type { LiveParticipant } from '../../services/hub/types';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
 import { ProgressBar } from '../../ui/motion/ProgressBar';
+import { HeartReadout } from './HeartReadout';
 import { StatusLight } from './StatusLight';
 import { LIGHTS, prescriptionLine, progressFraction, progressLabel } from './roster';
 
+/** The last few form scores as small coloured chips. The colours match the good, fair and poor bands. */
 function ScoreChips({ scores }: { scores: readonly number[] }) {
   return (
     <ul className="flex items-center gap-1" aria-label="Recent form scores">
@@ -19,6 +21,7 @@ function ScoreChips({ scores }: { scores: readonly number[] }) {
   );
 }
 
+/** One person's card on the instructor screen, with a button to move them to the next exercise. */
 export function ParticipantCard({ person, onNext, busy }: { person: LiveParticipant; onNext: (patientId: string) => void; busy: boolean }) {
   const { exercise, progress } = person;
   return (
@@ -49,6 +52,7 @@ export function ParticipantCard({ person, onNext, busy }: { person: LiveParticip
               <ScoreChips scores={person.recent_scores} />
             </div>
           ) : null}
+          <HeartReadout heart={person.heart_rate} />
           <p className="text-slate-600">{person.reason}</p>
         </div>
       ) : (

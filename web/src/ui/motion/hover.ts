@@ -3,6 +3,7 @@ import { gsap, motionAllowed } from './gsap';
 const LIFT_SHADOW = '0 1px 0 rgba(27,26,23,0.04), 0 14px 26px -12px rgba(27,26,23,0.32)';
 const REST_SHADOW = '0 1px 0 rgba(27,26,23,0.04), 0 1px 2px rgba(27,26,23,0.04)';
 
+/** The hover behaviours, chosen by the data-hover attribute on an element. */
 type Kind = 'lift' | 'button' | 'row' | 'nav';
 
 function kindOf(el: HTMLElement): Kind | null {
@@ -10,15 +11,18 @@ function kindOf(el: HTMLElement): Kind | null {
   return kind === 'lift' || kind === 'button' || kind === 'row' || kind === 'nav' ? kind : null;
 }
 
+/** Disabled elements do not react to hover. */
 function isInert(el: HTMLElement): boolean {
   return el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true';
 }
 
+/** Animate the marked parts inside an element, if it has any. */
 function toParts(el: HTMLElement, selector: string, vars: gsap.TweenVars): void {
   const found = Array.from(el.querySelectorAll<HTMLElement>(selector));
   if (found.length > 0) gsap.to(found, vars);
 }
 
+/** The animation when the pointer enters an element. */
 function enter(el: HTMLElement, kind: Kind): void {
   switch (kind) {
     case 'lift':
@@ -40,6 +44,7 @@ function enter(el: HTMLElement, kind: Kind): void {
   }
 }
 
+/** Undo the hover animation. */
 function leave(el: HTMLElement, kind: Kind): void {
   switch (kind) {
     case 'lift':
@@ -61,6 +66,7 @@ function leave(el: HTMLElement, kind: Kind): void {
   }
 }
 
+/** Add hover and press animations to every element with a data-hover attribute. One set of listeners on the page is used instead of one set per element. Touch input and reduced motion are skipped. Returns a function that removes the listeners. */
 export function installHoverMotion(root: HTMLElement | Document = document): () => void {
   const target = (event: Event): HTMLElement | null => (event.target instanceof Element ? event.target.closest<HTMLElement>('[data-hover]') : null);
 
@@ -70,6 +76,7 @@ export function installHoverMotion(root: HTMLElement | Document = document): () 
     const el = target(e);
     const kind = el ? kindOf(el) : null;
     if (!el || !kind || isInert(el)) return;
+    // Moving between children of the same element is not a real enter
     if (e.relatedTarget instanceof Node && el.contains(e.relatedTarget)) return;
     enter(el, kind);
   };

@@ -1,13 +1,16 @@
+"""Checks whether a hub can be found from this computer, and can open the Windows firewall for it."""
 import argparse
 import os
 import subprocess
 import sys
 
+# The parent folder is added so the formcheck package can be imported when this is run directly
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from formcheck import discovery as d
 
 
 def fix_firewall():
+    """Add Windows firewall rules for the hub's web and discovery ports. Needs an administrator shell."""
     if not sys.platform.startswith("win"):
         print("Firewall helper is for Windows only. On Linux: sudo ufw allow 5000/tcp && sudo ufw allow 5001/udp")
         return
@@ -24,6 +27,7 @@ def fix_firewall():
 
 
 def main():
+    """Try each way of finding a hub and print what worked, with hints when nothing did."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--fix-firewall", action="store_true")
     ap.add_argument("--hub", help="a specific address to test as well")

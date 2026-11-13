@@ -1,3 +1,4 @@
+"""Runs every exercise in the library through the extractor and judge with simulated poses, to check that reps are counted, form is scored and holds complete."""
 import json
 import math
 import os
@@ -12,27 +13,32 @@ from formcheck.quality_judge import QualityJudge
 LIB = json.load(open(EXERCISES_PATH))
 SHAPE = (480, 640, 3)
 FPS = 20
+# Joint angle range in degrees that the simulated person moves through, by angle joint
 RANGE = {"knee": (85, 172), "hip_hinge": (80, 172), "elbow": (45, 168), "shoulder": (20, 150),
          "thigh_lean": (3, 55), "spine_lean": (3, 60)}
 REPS = 5
 
 
 class LM:
+    """Minimal stand in for a MediaPipe landmark."""
     def __init__(self, x=0.5, y=0.5, v=0.0):
         self.x, self.y, self.visibility = x, y, v
 
 
 def _rot_up(theta):
+    """Unit vector for an arm or leg that points up and swings by theta degrees."""
     a = math.radians(theta)
     return (math.sin(a), -math.cos(a))
 
 
 def _rot_down(theta):
+    """Unit vector for an arm or leg that points down and swings by theta degrees."""
     a = math.radians(theta)
     return (math.sin(a), math.cos(a))
 
 
 def pose(joint, theta):
+    """Build a full 33 landmark pose in which the named joint is at the given angle and the rest of the body stays still."""
     lm = [LM() for _ in range(33)]
     for side, (shift, names) in enumerate(((0, (11, 13, 15, 23, 25, 27)), (60, (12, 14, 16, 24, 26, 28)))):
         sh, el, wr, hp, kn, an = names
@@ -76,12 +82,14 @@ def pose(joint, theta):
 
 
 def endpoints(cfg):
+    """The rest and peak angles for an exercise, in the direction the config says it moves."""
     lo, hi = RANGE[cfg["angle_joint"]]
     rest_high = cfg.get("rest_direction") == "high"
     return (hi, lo) if rest_high else (lo, hi)
 
 
 class Rig:
+    """Feeds simulated frames to a judge and collects what it reports."""
     def __init__(self, eid, template=None, seed=1, noise=1.2):
         self.cfg = LIB[eid]
         self.judge = QualityJudge(self.cfg, template)
@@ -92,6 +100,7 @@ class Rig:
         self.out = []
 
     def feed(self, theta):
+        """Send one frame at the given angle with a little noise."""
         f = self.ext.extract(pose(self.cfg["angle_joint"], theta + self.rng.gauss(0, self.noise)), SHAPE)
         assert f is not None, "extractor returned nothing for a fully visible pose"
         f["timestamp"] = self.t
@@ -99,19 +108,23 @@ class Rig:
         self.out.extend(self.judge.process_feature(f))
 
     def hold(self, theta, seconds):
+        """Stay at one angle for a number of seconds."""
         for _ in range(int(seconds * FPS)):
             self.feed(theta)
 
     def rep(self, rest, peak, dur=2.0):
+        """Move from the rest angle to the peak and back in a smooth curve."""
         n = int(dur * FPS)
         for i in range(n):
             self.feed(rest + (peak - rest) * math.sin(math.pi * i / (n - 1)) ** 2)
 
     def reps_done(self):
+        """Judgments that were finished reps."""
         return [j for j in self.out if j["type"] == "rep"]
 
 
 def run_reps(eid, template=None, n=REPS, depth=1.0, seed=1):
+    """Run a warm up, n reps and a pause. Depth sets how far each rep goes toward the peak."""
     rig = Rig(eid, template, seed)
     rest, peak = endpoints(rig.cfg)
     rig.hold(rest, 1.5)
@@ -123,6 +136,7 @@ def run_reps(eid, template=None, n=REPS, depth=1.0, seed=1):
 
 
 def template_from(rig_eid):
+    """Calibrate by performing good reps and return the template made from them."""
     rig = Rig(rig_eid)
     captured = []
     original = rig.judge.segmenter.extract_completed_reps_with_meta
@@ -143,10 +157,12 @@ def template_from(rig_eid):
 
 
 def rep_exercises():
+    """Exercises that count reps."""
     return [e for e, c in LIB.items() if c["tracking"] in ("scored", "count_only")]
 
 
 def timed_exercises():
+    """Exercises that are timed holds."""
     return [e for e, c in LIB.items() if c["tracking"] == "timed"]
 
 

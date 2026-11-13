@@ -10,6 +10,7 @@ import { Button } from '../../../ui/Button';
 import { Alert, Card } from '../../../ui/display';
 import { PatientForm } from '../form/PatientForm';
 
+/** Edits the patient record and holds the archive action. Editing is locked for archived patients and for roles without permission. */
 export function DetailsTab({ patient, onChanged }: { patient: Patient; onChanged: () => void }) {
   const { patients } = useData();
   const { user, can } = useAuth();
@@ -17,6 +18,7 @@ export function DetailsTab({ patient, onChanged }: { patient: Patient; onChanged
   const syncTags = useTagSync();
   const editable = can('patient:edit') && patient.status === 'active';
 
+  // Wrapped in useCallback so the form does not see a new submit handler on every render
   const save = useCallback(
     async (data: PatientData) => {
       await patients.update(patient.id, data, user?.uid ?? 'unknown');
@@ -27,6 +29,7 @@ export function DetailsTab({ patient, onChanged }: { patient: Patient; onChanged
     [patients, patient.id, user, syncTags, toast, onChanged],
   );
 
+  // Archiving frees the tag, so the hub list is refreshed right after
   const archive = useCallback(async () => {
     const ok = window.confirm(`Archive ${patient.firstName} ${patient.lastName}? Their tag will be freed. Their records are kept.`);
     if (!ok) return;

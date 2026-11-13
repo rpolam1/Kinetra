@@ -15,7 +15,8 @@
     "format": "prettier --write .",
     "test": "tsx --test \"tests/**/*.test.ts\"",
     "test:e2e": "tsx e2e/app.e2e.ts",
-    "build:e2e": "node scripts/bundle-e2e.mjs dist-e2e"
+    "build:e2e": "node scripts/bundle-e2e.mjs dist-e2e",
+    "seed:demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.0.0",

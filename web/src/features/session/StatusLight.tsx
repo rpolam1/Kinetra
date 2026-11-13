@@ -4,8 +4,10 @@ import { Icon } from '../../ui/Icon';
 import { gsap, motionAllowed } from '../../ui/motion/gsap';
 import { LIGHTS } from './roster';
 
+// Only the lights that need attention pulse, so a calm room stays calm
 const PULSING: readonly Light[] = ['needs_help', 'drifting'];
 
+/** A coloured status with an icon and a label, so it is not only colour that carries the meaning. */
 export function StatusLight({ light, large = false }: { light: Light; large?: boolean }) {
   const meta = LIGHTS[light];
   const ring = useRef<HTMLSpanElement>(null);

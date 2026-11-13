@@ -19,6 +19,7 @@ interface ToastApi {
 
 const ToastContext = createContext<ToastApi | null>(null);
 
+/** Show short messages in the corner of the screen. */
 export function useToast(): ToastApi {
   const api = useContext(ToastContext);
   if (!api) throw new Error('useToast must be used inside <ToastProvider>');
@@ -31,6 +32,7 @@ const STYLE: Record<ToastTone, { box: string; icon: IconName; accent: string }> 
   info: { box: 'border-white/15', icon: 'info', accent: 'text-sky-300' },
 };
 
+/** One message. It slides in unless the person prefers reduced motion. */
 function ToastItem({ toast }: { toast: Toast }) {
   const ref = useRef<HTMLDivElement>(null);
   const look = STYLE[toast.tone];
@@ -47,6 +49,7 @@ function ToastItem({ toast }: { toast: Toast }) {
   );
 }
 
+/** Shows messages in the corner and removes each one after a while. */
 export function ToastProvider({ children, durationMs = 6000 }: { children: ReactNode; durationMs?: number }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const next = useRef(1);

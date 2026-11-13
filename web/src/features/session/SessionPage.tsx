@@ -19,10 +19,12 @@ import { StatusLight } from './StatusLight';
 import { countByLight, sortByNeed } from './roster';
 import type { Light } from '../../services/hub/types';
 
+/** A readable message for anything that was thrown. */
 function errorText(e: unknown): string {
   return e instanceof Error ? e.message : 'Something went wrong';
 }
 
+/** The instructor's live session screen. It shows the setup form until a session starts and the monitor while it runs. */
 export function SessionPage() {
   const { api, status } = useHub();
   const { patients, sessions } = useData();
@@ -36,6 +38,7 @@ export function SessionPage() {
 
   const active = snapshot?.session?.active === true;
 
+  // Wraps hub calls so every button gets the same busy state and error message
   async function run(work: () => Promise<void>) {
     setBusy(true);
     setError(null);
@@ -54,6 +57,7 @@ export function SessionPage() {
       await api.startSession(participants, autoAdvance);
     });
 
+  // The hub only knows patient codes, so each code is matched back to a patient record before saving
   async function save(summary: SessionSummary): Promise<void> {
     if (!user) return;
     const codes = summary.participants.map((p) => p.patient_id);
@@ -71,6 +75,7 @@ export function SessionPage() {
     toast.success(`Saved the session for ${records.length} ${records.length === 1 ? 'person' : 'people'}`);
   }
 
+  // The summary is kept in state until it is saved, so a failed save can be retried without losing the results
   const end = () =>
     run(async () => {
       const summary = await api.endSession();
@@ -125,6 +130,7 @@ export function SessionPage() {
   );
 }
 
+/** The running session view. People are sorted so the ones who need help come first. */
 function Monitor({ snapshot, busy, onNext, onAuto, onEnd }: { snapshot: NonNullable<ReturnType<typeof useLiveSnapshot>['snapshot']>; busy: boolean; onNext: (id: string) => void; onAuto: (enabled: boolean) => void; onEnd: () => void }) {
   const people = sortByNeed(snapshot.participants);
   const counts = countByLight(snapshot.participants);

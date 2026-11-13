@@ -1,3 +1,4 @@
+"""End to end calibration through a real hub and camera pipeline. A camera picks up a job, uploads reps and uses the template afterwards."""
 import os, random, sys, tempfile, time
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -13,12 +14,14 @@ CFG_PATH = default_exercise_config_path()
 
 
 def sync(link):
+    """Push the link's pending state to the hub and read the hub's state back."""
     link.poll_state()
     link._flush_latest()
     link.flush()
 
 
 def make_camera(hub, camera_id="camA", exercise="goblet_squat"):
+    """A camera link and pipeline that talk to the given hub."""
     link = HubLink(hub.url, camera_id, log=lambda *_: None)
     link.sync_clock(1)
     pipeline = CameraPipeline(load_exercise_configs(CFG_PATH), TemplateManager(tempfile.mkdtemp()), link,
@@ -27,6 +30,7 @@ def make_camera(hub, camera_id="camA", exercise="goblet_squat"):
 
 
 def create_job(hub, camera="camA", patient="P-0001", exercise="goblet_squat", **kw):
+    """Ask the hub to start a calibration job and return its id."""
     r = requests.post(hub.url + "/api/calibration", json=dict(
         {"patient_id": patient, "exercise": exercise, "camera_id": camera}, **kw))
     assert r.status_code == 201, r.text
@@ -34,6 +38,7 @@ def create_job(hub, camera="camA", patient="P-0001", exercise="goblet_squat", **
 
 
 def activate(link, pipeline, hub, job):
+    """Step the pipeline until the camera has claimed the job."""
     lm = sim.make_landmarks(175, 175, 8, 0.0)
     sync(link)
     pipeline.step([lm], [], sim.FRAME_SHAPE, time.time())
@@ -47,6 +52,7 @@ def activate(link, pipeline, hub, job):
 
 
 def play(link, pipeline, frames, base=0.0):
+    """Play frames through the pipeline and sync with the hub along the way."""
     for i, (ts, lm) in enumerate(frames):
         pipeline.step([lm], [], sim.FRAME_SHAPE, base + ts)
         if i % 5 == 0:
@@ -55,6 +61,7 @@ def play(link, pipeline, frames, base=0.0):
 
 
 def job_state(hub, job):
+    """The hub's view of a job."""
     return requests.get(f"{hub.url}/api/calibration/{job}").json()
 
 

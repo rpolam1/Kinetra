@@ -1,3 +1,4 @@
+"""Captures reps from a camera during a calibration job and sends them, with replay frames, to the hub."""
 from collections import deque
 
 from formcheck.feature_extractor import FeatureExtractor
@@ -11,6 +12,7 @@ MAX_REPLAY_FRAMES = 60  # keeps each uploaded rep small
 
 
 def flat_landmarks(landmarks):
+    """Flatten landmarks into x, y, visibility triples, rounded to keep the upload small."""
     out = []
     for lm in landmarks:
         out.extend((round(lm.x, 3), round(lm.y, 3), round(getattr(lm, "visibility", 1.0), 2)))
@@ -22,6 +24,7 @@ def grouped_landmarks(flat):
 
 
 def subsample(items, limit):
+    """Pick evenly spaced items, always keeping the first and last."""
     n = len(items)
     if n <= limit:
         return list(items)
@@ -29,6 +32,7 @@ def subsample(items, limit):
 
 
 class CalibrationRunner:
+    """Drives one calibration job. Follows a single person, segments their reps and uploads each rep with a short replay of the frames around it."""
     def __init__(self, job, exercise_config, sender):
         self.job = job
         self.sender = sender
@@ -44,6 +48,7 @@ class CalibrationRunner:
         self._last_post = float("-inf")
 
     def _choose(self, people):
+        """Pick the person to calibrate. Once chosen, the same track is kept until they leave view, so someone walking past does not take over the job."""
         if not people:
             self.track_id = None
             return None, "no_person", "No one in view"
@@ -52,6 +57,7 @@ class CalibrationRunner:
                 if p["track_id"] == self.track_id:
                     return p, "ok", ""
             self.track_id = None
+        # Prefer someone already identified by their tag as this patient
         mine = [p for p in people if p["patient_id"] == self.job["patient_id"]]
         if mine:
             self.track_id = mine[0]["track_id"]
@@ -65,6 +71,7 @@ class CalibrationRunner:
         return None, "ambiguous", "Several people in view: show the patient's tag so the right person is tracked"
 
     def step(self, people, frame_shape, now):
+        """Process one frame of detections. Returns the track id being followed, or None when nobody usable is in view. Live status is posted at most every LIVE_POST_INTERVAL seconds."""
         person, status, message = self._choose(people)
         angle = None
         landmarks = None
@@ -93,6 +100,7 @@ class CalibrationRunner:
         return self.track_id if person is not None else None
 
     def _send_rep(self, samples, meta):
+        # Pad the window so the replay shows the setup and the return, not only the rep itself
         start, end = meta["t_start"] - REPLAY_PAD, meta["t_end"] + REPLAY_PAD
         window = [(t, lm) for t, lm in self._frames if start <= t <= end]
         frames = [{"t": round(t - start, 3), "p": lm} for t, lm in subsample(window, MAX_REPLAY_FRAMES)]

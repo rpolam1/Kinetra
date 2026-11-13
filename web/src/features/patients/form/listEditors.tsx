@@ -4,12 +4,14 @@ import { Button } from '../../../ui/Button';
 import { DatePicker } from '../../../ui/DatePicker';
 import { CheckboxField, TextField } from '../../../ui/fields';
 
+/** The props shared by the list editors. Errors are keyed by field path. */
 interface ListProps<T> {
   items: readonly T[];
   errors: FieldErrors;
   onChange: (items: T[]) => void;
 }
 
+/** An editable list of text entries with add and remove buttons. */
 export function StringListEditor({ items, errors, onChange, label, name, placeholder }: ListProps<string> & { label: string; name: string; placeholder?: string }) {
   return (
     <fieldset className="space-y-2">
@@ -31,6 +33,7 @@ export function StringListEditor({ items, errors, onChange, label, name, placeho
   );
 }
 
+/** An editable list of medications. The beta blocker box matters because it changes how heart rate targets are used. */
 export function MedicationEditor({ items, errors, onChange }: ListProps<Medication>) {
   return (
     <fieldset className="space-y-2">
@@ -55,6 +58,7 @@ export function MedicationEditor({ items, errors, onChange }: ListProps<Medicati
   );
 }
 
+/** An editable list of baseline test results. */
 export function BaselineTestEditor({ items, errors, onChange }: ListProps<BaselineTest>) {
   return (
     <fieldset className="space-y-2">

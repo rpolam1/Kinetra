@@ -1,3 +1,4 @@
+"""Tests for form scoring. Simulated squats with known flaws are scored against a calibration made from good reps."""
 import copy
 import json
 import math
@@ -26,10 +27,12 @@ from formcheck.simulation import LM, frames, make_landmarks  # noqa: E402,F401  
 
 
 def good(rng):
+    """Settings for a good rep, drawn at random within a normal range."""
     return dict(theta_min=rng.uniform(95, 125), lean=rng.uniform(20, 32), dur=rng.uniform(1.3, 2.2))
 
 
 def segment(specs, seed=0, cfg=CFG):
+    """Run simulated reps through the extractor and segmenter and return the reps found."""
     ext, seg = FeatureExtractor(cfg), RepSegmenter(mode="rep_based")
     for ts, lm in frames(specs, seed):
         f = ext.extract(lm, SHAPE)
@@ -40,15 +43,18 @@ def segment(specs, seed=0, cfg=CFG):
 
 
 def to_template(reps):
+    """Turn segmented reps into the template format the scorer expects."""
     return {"calibration_reps": [{"samples": [
         {"timestamp": s["timestamp"] - r[0]["timestamp"], "angle": s["angle"],
          "aux": s["aux"], "signals": s["signals"]} for s in r]} for r in reps]}
 
 
+# Calibration is built once per config because building it is slow
 _cache = {}
 
 
 def calibration(cfg=CFG):
+    """Reps and profile from five good squats. The result is cached per config."""
     key = id(cfg)
     if key not in _cache:
         rng = random.Random(1)
@@ -59,6 +65,7 @@ def calibration(cfg=CFG):
 
 
 def score(spec, seed, cfg=CFG):
+    """Score one simulated rep against the calibration. The segmenter must find exactly one rep."""
     reps = segment([spec], seed=seed, cfg=cfg)
     assert len(reps) == 1, f"expected 1 rep, segmenter found {len(reps)}"
     _, profile = calibration(cfg)
@@ -66,6 +73,7 @@ def score(spec, seed, cfg=CFG):
 
 
 def scores_for(spec_fn, n=5, cfg=CFG):
+    """Scores for several reps made by the given spec function."""
     rng = random.Random(7)
     out = []
     for i in range(n):
@@ -76,6 +84,7 @@ def scores_for(spec_fn, n=5, cfg=CFG):
 
 
 def show(name, results):
+    """Print scores so they can be read when a test fails."""
     print(f"\n{name:26s} scores={[r['score'] for r in results]}  e.g. {results[0]['issues'][:2]}")
 
 

@@ -4,6 +4,7 @@ import { DEFAULT_HISTORY_LIMIT, DataError } from '../repositories';
 import type { CalibrationRepository, SessionRepository } from '../repositories';
 import type { MemoryStore } from './MemoryStore';
 
+/** Finished sessions kept in the in memory store. Saving a session with an existing id replaces it. */
 export class MemorySessionRepository implements SessionRepository {
   constructor(private readonly store: MemoryStore) {}
 
@@ -22,6 +23,7 @@ export class MemorySessionRepository implements SessionRepository {
   }
 }
 
+/** Calibration records kept in the in memory store, one per exercise and camera. */
 export class MemoryCalibrationRepository implements CalibrationRepository {
   constructor(private readonly store: MemoryStore) {}
 
