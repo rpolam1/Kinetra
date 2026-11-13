@@ -9,6 +9,7 @@ import { Button } from '../../ui/Button';
 import { Alert, Badge, Card, DefinitionList, PageHeader } from '../../ui/display';
 import { TextField } from '../../ui/fields';
 
+/** Where staff point this browser at the hub, check the connection and resend tags. Only roles that can configure the hub may change anything. */
 export function SettingsPage() {
   const { settings, updateSettings, status, refresh } = useHub();
   const { mode } = useData();
@@ -21,11 +22,13 @@ export function SettingsPage() {
 
   const editable = can('hub:configure');
 
+  // Settings live in this browser only, so saving never touches the cloud
   const save = async () => {
     updateSettings({ baseUrl, apiKey });
     toast.success('Hub settings saved.');
   };
 
+  // Testing saves first so the check runs against what is typed in the boxes
   const test = async () => {
     setBusy(true);
     updateSettings({ baseUrl, apiKey });
