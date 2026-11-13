@@ -3,8 +3,10 @@ import { DEFAULT_HISTORY_LIMIT, DataError } from '../repositories';
 import type { PrescriptionRepository } from '../repositories';
 import type { MemoryStore } from './MemoryStore';
 
+/** The reason recorded for the first version, which needs no explanation. */
 export const INITIAL_REASON = 'Initial prescription';
 
+/** Prescription versions for the demo backend. The last version in the list is the current one. */
 export class MemoryPrescriptionRepository implements PrescriptionRepository {
   constructor(private readonly store: MemoryStore) {}
 
