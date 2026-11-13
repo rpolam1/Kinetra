@@ -1,3 +1,4 @@
+"""Finding the exercise hub on the local network. A hub answers UDP probes on DISCOVERY_PORT, and clients fall back to a subnet scan when broadcasts are blocked."""
 import json
 import os
 import socket
@@ -15,6 +16,7 @@ HUB_HEADER = "X-Hub"
 
 
 def local_ips():
+    """Addresses of this machine, ignoring loopback and link-local ones."""
     ips = set()
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -50,6 +52,7 @@ def normalize_url(text, default_port=DEFAULT_HTTP_PORT):
 
 
 def check_hub(url, timeout=1.0):
+    """Return hub info if the url answers like a hub, otherwise None. A 401 still counts because it means a hub with an API key is running."""
     try:
         with urllib.request.urlopen(url.rstrip("/") + "/api/health", timeout=timeout) as r:
             if r.headers.get(HUB_HEADER) != "exercise-hub":
@@ -66,6 +69,7 @@ def check_hub(url, timeout=1.0):
 
 
 class DiscoveryResponder(threading.Thread):
+    """Answers UDP probes so clients can find this hub without being told its address."""
 
     def __init__(self, http_port=DEFAULT_HTTP_PORT, name=None, started_at=None,
                  port=DISCOVERY_PORT):
@@ -113,6 +117,7 @@ class DiscoveryResponder(threading.Thread):
 
 
 def probe_udp(timeout=2.0, port=DISCOVERY_PORT, broadcast=None):
+    """Broadcast probes and collect the replies, oldest hub first."""
     found = {}
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -150,6 +155,7 @@ def probe_udp(timeout=2.0, port=DISCOVERY_PORT, broadcast=None):
 
 
 def scan_subnet(port=DEFAULT_HTTP_PORT, timeout=0.5, hosts=None):
+    """Slower fallback for networks that drop UDP broadcasts. Tries the hub port on every host of each local /24."""
     if hosts is None:
         hosts = []
         for ip in local_ips():
@@ -173,12 +179,14 @@ def scan_subnet(port=DEFAULT_HTTP_PORT, timeout=0.5, hosts=None):
 
 
 def _pick(infos):
+    """Choose the hub that has been running longest, so a restarted hub on the same network does not win over an established one."""
     return sorted(infos, key=lambda i: (i.get("started_at") or 0.0, i["url"]))[0]["url"] if infos else None
 
 
 def find_hub(preferred=None, cache_path=CACHE_FILE, port=DISCOVERY_PORT,
              http_port=DEFAULT_HTTP_PORT, broadcast=None, scan_hosts=None, scan=True,
              udp_timeout=2.0, log=None):
+    """Locate the hub, trying the cheapest and most specific sources first: an explicit address, HUB_URL, the cached address, this machine, a UDP broadcast and finally a subnet scan. The address that works is cached for next time."""
     say = log or (lambda *_: None)
 
     def verified(url, how):
