@@ -1,3 +1,4 @@
+"""A fake camera for demos and tests. Plays scripted reps for simulated people into the real client pipeline, so the hub and web app see normal traffic."""
 import argparse
 import os
 import random
@@ -5,6 +6,7 @@ import sys
 import tempfile
 import time
 
+# The parent folder is added so the client and server packages can be imported when this is run directly
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from client import CameraPipeline, load_exercise_configs
@@ -18,6 +20,7 @@ TAG_REPEAT_SECONDS = 60.0
 
 
 def parse_script(text):
+    """Turn a script such as good*6,shallow into a list of rep kinds."""
     kinds = []
     for word in text.split(","):
         word = word.strip()
@@ -33,6 +36,7 @@ def parse_script(text):
 
 
 def person_stream(kinds, seed):
+    """Endless stream of landmarks for one simulated person repeating the script."""
     rng = random.Random(seed)
     while True:
         specs = [sim.good_spec(rng) if k == "good" else sim.bad_spec(rng, k) for k in kinds]
@@ -41,6 +45,7 @@ def person_stream(kinds, seed):
 
 
 def main():
+    """Connect to a hub and feed it simulated people until stopped."""
     ap = argparse.ArgumentParser(description="Fake camera for demos and tests")
     ap.add_argument("--camera-id", default="sim-cam", help="name of this fake camera (calibrations are per camera)")
     ap.add_argument("--hub", default="auto", help="hub address, or 'auto' to find it")
@@ -67,6 +72,7 @@ def main():
     pipeline = CameraPipeline(configs, TemplateManager(tempfile.mkdtemp()), link,
                               default_exercise=args.exercise, camera_id=args.camera_id)
     streams = [person_stream(kinds, args.seed + i) for i in range(len(patients))]
+    # Several people are spread across the frame so their poses do not overlap
     offsets = [(-0.25 + i * 0.5 / max(len(patients) - 1, 1)) if len(patients) > 1 else 0.0 for i in range(len(patients))]
     jitter_rng = random.Random(args.seed)
 
@@ -82,6 +88,7 @@ def main():
             tag_of = {entry["patient_id"]: int(tag) for tag, entry in registry.items()}
 
             poses, tags = [], []
+            # Each person holds a tag up for a few seconds at the start of every minute
             holding_tag = (elapsed % TAG_REPEAT_SECONDS) < TAG_SHOWN_SECONDS
             for stream, patient, dx in zip(streams, patients, offsets):
                 landmarks = sim.shifted(next(stream), dx=dx, jitter=0.001, rng=jitter_rng)
