@@ -1,3 +1,4 @@
+"""Camera client. Reads frames, finds people and AprilTags, scores each person's exercise and sends the results to the hub."""
 import argparse
 import json
 import os
@@ -12,6 +13,7 @@ from formcheck.identity import PersonTracker
 from formcheck.quality_judge import QualityJudge
 from formcheck.template_manager import TemplateManager
 
+# Seconds to wait before asking the hub again for a template that was missing
 TEMPLATE_RETRY_SEC = 30.0
 PRESENCE_INTERVAL = 1.0  # seconds between "who I can see" heartbeats to the hub
 PALETTE = [(0, 255, 0), (255, 160, 0), (255, 0, 255), (0, 200, 255), (255, 255, 0), (160, 160, 255)]
@@ -23,15 +25,18 @@ def load_exercise_configs(path=EXERCISES_PATH):
 
 
 def load_tag_map(path):
+    """Read a tag id to patient id map from a JSON file. A missing file gives an empty map."""
     if path and os.path.exists(path):
         with open(path) as f:
             return {int(k): v for k, v in json.load(f).items()}
     return {}
 
+# Holds shorter than this are not reported to the hub
 MIN_HOLD_SECONDS = 3.0
 
 
 class PersonSession:
+    """What the client knows about one tracked person: their exercise, scoring state, rep counts and any hold in progress."""
 
     def __init__(self, track_id):
         self.track_id = track_id
@@ -51,6 +56,7 @@ class PersonSession:
 
 
 class CameraPipeline:
+    """Turns each frame's poses and tags into per-person scoring. Owns the tracker and one session per tracked person, and sends results to the hub when connected."""
 
     def __init__(self, exercise_configs, template_manager, link=None, tag_map=None,
                  default_exercise=None, on_rep=None, camera_id=None):
@@ -69,6 +75,7 @@ class CameraPipeline:
         self._last_presence = float("-inf")
 
     def _template_for(self, patient_id, exercise, now):
+        """Find the calibration template for a patient and exercise. A template for this camera is tried before the shared one, each from disk and then from the hub. A miss is remembered for TEMPLATE_RETRY_SEC."""
         if patient_id is None:
             return None
         key = (patient_id, exercise)
@@ -89,11 +96,13 @@ class CameraPipeline:
         return tpl
 
     def _exercise_for(self, patient_id):
+        """The exercise assigned by the hub, or the default when there is none."""
         if patient_id is not None and self.link is not None:
             return self.link.assigned_exercise(patient_id, self.default_exercise)
         return self.default_exercise
 
     def _configure(self, sess, patient_id, exercise, now):
+        """Set up the person's extractor and judge for the exercise, or hand a newly found template to the existing judge."""
         template = self._template_for(patient_id, exercise, now)
         if sess.exercise != exercise or sess.judge is None:
             if sess.holding:
@@ -111,6 +120,7 @@ class CameraPipeline:
         sess.patient_id = patient_id
 
     def _map_tags(self, tags):
+        """Attach a patient id to each detected tag using the hub's registry. When the hub manages tags, unregistered tags are ignored. Otherwise the local map is used, or an id made from the tag number."""
         state = self.link.state if self.link else {}
         registry = state.get("tags") or {}
         managed = bool(state.get("tags_managed"))
@@ -127,6 +137,7 @@ class CameraPipeline:
         return mapped
 
     def _calibrate(self, people, frame_shape, now):
+        """Run any calibration jobs for this camera. Pending jobs are claimed, and the track ids being calibrated are returned so they are not scored as normal reps."""
         if not self.link:
             return set()
         jobs = self.link.calibration_jobs()
@@ -154,6 +165,7 @@ class CameraPipeline:
         return handled
 
     def _send_presence(self, people, now):
+        """Tell the hub who is in view, at most once per PRESENCE_INTERVAL."""
         if not self.link or now - self._last_presence < PRESENCE_INTERVAL:
             return
         self._last_presence = now
@@ -166,6 +178,7 @@ class CameraPipeline:
             for p in people])
 
     def step(self, poses, tags, frame_shape, now):
+        """Process one frame. Returns a (person, session) pair for each person in view, with the session set to None for anyone being calibrated or without an exercise."""
         mapped = self._map_tags(tags)
         people = self.tracker.update(poses, frame_shape, mapped, now)
 
@@ -204,6 +217,7 @@ class CameraPipeline:
         return out
 
     def _finish_hold(self, sess):
+        """Report a finished hold to the hub. Holds shorter than MIN_HOLD_SECONDS are ignored."""
         peak, last_t, who = sess.hold_peak, sess.hold_last_t, sess.hold_who
         sess.hold_peak, sess.hold_last_t = 0.0, None
         if peak < MIN_HOLD_SECONDS or last_t is None or who is None or sess.exercise is None:
@@ -216,6 +230,7 @@ class CameraPipeline:
                                 who[0], who[1], sess.exercise, who[2])
 
     def _on_judgment(self, sess, person, j):
+        """Handle one result from the judge: hold progress and completion, or a scored rep. Rep counts are updated and the result is printed, sent to the hub and passed to on_rep."""
         if j.get("type") == "hold_progress":
             was_holding = sess.holding
             sess.holding = j["holding"]
@@ -284,6 +299,7 @@ def open_camera(cv2, index=None, limit=10):
 
 
 def run(args):
+    """Main loop. Opens the camera, connects to the hub and processes frames until q is pressed or the camera stops."""
     import cv2
     from formcheck.hub_client import HubLink
     from formcheck.identity import TagDetector
@@ -330,6 +346,7 @@ def run(args):
                 break
             frame_no += 1
             poses = pose.process_all(frame)
+            # Tags are only detected on every second frame to save time
             tags = tag_detector.detect(frame) if frame_no % 2 == 0 else []
             results = pipeline.step(poses, tags, frame.shape, time.time())
 
@@ -365,6 +382,7 @@ def run(args):
 
 
 def selftest(args):
+    """Check the install by loading the pose model and running pose and tag detection on a blank frame."""
     import numpy as np
     from formcheck.identity import TagDetector
     from formcheck.pose_extractor import PoseExtractor
