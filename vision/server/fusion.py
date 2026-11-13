@@ -1,8 +1,10 @@
+"""Merges reps seen by more than one camera into a single rep per person, and groups reps into sets."""
 GOOD_THRESHOLD = 80.0
 NEEDS_THRESHOLD = 50.0
 
 
 def classify(score):
+    """Turn a 0 to 100 score into a label, or None when there is no score."""
     if score is None:
         return None
     if score >= GOOD_THRESHOLD:
@@ -13,12 +15,14 @@ def classify(score):
 
 
 def _iou(s1, e1, s2, e2):
+    """Overlap of two time ranges divided by the span they cover together."""
     overlap = max(0.0, min(e1, e2) - max(s1, s2))
     union = max(e1, e2) - min(s1, s2)
     return overlap / union if union > 0 else 0.0
 
 
 class RepFusion:
+    """Combines reps from several cameras. Reps that overlap in time for the same exercise are treated as one rep seen twice, and tracks without a tag can be matched to a patient by the reps they share."""
     def __init__(self, overlap_iou=0.35, ambiguity_margin=0.1):
         self.overlap_iou = overlap_iou
         self.ambiguity_margin = ambiguity_margin
@@ -30,6 +34,7 @@ class RepFusion:
         self._next_id = 1
 
     def add_rep(self, obs):
+        """Add one rep from a camera and return the id of the rep it ended up in. It joins an existing rep when the time overlap is high enough and the patient does not disagree."""
         obs = dict(obs)
         if obs.get("patient_id") is None and obs.get("track_key") in self.track_patient:
             obs["patient_id"] = self.track_patient[obs["track_key"]]
@@ -67,6 +72,7 @@ class RepFusion:
         return target["id"]
 
     def bind(self, track_key, patient_id):
+        """Link a camera track to a patient, fill in earlier reps from that track and merge any reps that now match."""
         self.track_patient[track_key] = patient_id
         touched = set()
         for c in self.reps.values():
@@ -80,6 +86,7 @@ class RepFusion:
             self._consolidate(patient_id, ex)
 
     def _new(self, obs):
+        """Start a new combined rep from a single observation."""
         cid = self._next_id
         self._next_id += 1
         c = {"id": cid, "patient_id": obs.get("patient_id"), "exercise": obs.get("exercise"),
@@ -91,6 +98,7 @@ class RepFusion:
         return cid
 
     def _merge(self, c, obs):
+        """Add an observation to a combined rep and refresh its values."""
         c["observations"].append(obs)
         c["cameras"].add(obs["camera_id"])
         if obs.get("patient_id") and not c["patient_id"]:
@@ -99,6 +107,7 @@ class RepFusion:
         self._collect_votes(c)
 
     def _collect_votes(self, c):
+        """Count a vote for the patient on each tagless track that shares a rep with a known patient."""
         pid = c["patient_id"]
         if not pid or len(c["cameras"]) < 2:
             return
@@ -111,17 +120,21 @@ class RepFusion:
                 self._maybe_infer(tk)
 
     def _maybe_infer(self, track_key):
+        """Bind a track to a patient once its votes are consistent enough to trust."""
         if track_key in self.track_patient:
             return
         v = self._votes.get(track_key, {})
         total = sum(v.values())
         best, n = max(v.items(), key=lambda kv: kv[1])
+        # Two agreeing merges and a clear majority are needed before a guess is used
         if n >= 2 and n / total >= 0.85:
             self.inferred.add(track_key)
             self.bind(track_key, best)
 
     def _recompute(self, c):
+        """Recalculate a combined rep from all of its observations."""
         obs = c["observations"]
+        # Observations with more of the body in view count for more, with a small floor so none is ignored
         w = [max(float(o.get("coverage") or 0.0), 0.05) for o in obs]
         tw = sum(w)
         c["t_start"] = sum(wi * o["t_start"] for wi, o in zip(w, obs)) / tw
@@ -144,6 +157,7 @@ class RepFusion:
         c["issues"] = issues[:6]
 
     def _consolidate(self, patient_id, exercise):
+        """Merge reps of one patient that were created before the patient was known and that overlap in time."""
         merged = True
         while merged:
             merged = False
@@ -165,6 +179,7 @@ class RepFusion:
                     break
 
     def canonical_reps(self, patient_id="__any__", exercise=None):
+        """Combined reps in time order, optionally limited to one patient and exercise."""
         out = [c for c in self.reps.values()
                if (patient_id == "__any__" or c["patient_id"] == patient_id)
                and (exercise is None or c["exercise"] == exercise)]
@@ -172,6 +187,7 @@ class RepFusion:
 
 
 def compute_sets(reps, gap_seconds=20.0):
+    """Split reps into sets. A gap longer than gap_seconds starts a new set."""
     sets, cur = [], []
     for r in sorted(reps, key=lambda r: r["t_start"]):
         if cur and r["t_start"] - cur[-1]["t_end"] > gap_seconds:
