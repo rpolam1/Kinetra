@@ -7,6 +7,7 @@ import type {
   PrescribedExercise,
 } from './types';
 
+/** The usual dose ranges the clinic works to. A value outside them gets a warning. */
 export const DOSE_GUIDELINES = {
   sets: { min: 1, max: 2 },
   reps: { min: 10, max: 20 },
@@ -18,10 +19,12 @@ export const DOSE_GUIDELINES = {
   rotationSessions: 12,
 } as const;
 
+/** Estimate maximum heart rate from age with the Tanaka formula, 208 minus 0.7 times age. */
 export function estimateMaxHr(age: number): number {
   return Math.round(208 - 0.7 * age);
 }
 
+/** A target heart rate range in beats per minute, with the numbers it was worked out from. */
 export interface HeartRateZone {
   restingHr: number;
   maxHr: number;
@@ -31,6 +34,7 @@ export interface HeartRateZone {
   highBpm: number;
 }
 
+/** Work out the target zone with the Karvonen method, which adds a share of the heart rate reserve to the resting rate. An estimated maximum is used when none was measured. Returns null when there is not enough data. */
 export function heartRateZone(input: {
   age: number | null;
   restingHr: number | null;
@@ -54,10 +58,12 @@ export function heartRateZone(input: {
   };
 }
 
+/** Beta blockers lower heart rate, so a target zone is not reliable for these patients. */
 export function hasBetaBlocker(patient: Pick<PatientData, 'medications'>): boolean {
   return patient.medications.some((m) => m.betaBlocker);
 }
 
+/** A kind of exercise that a full session plan should include, with the least number of exercises. */
 export interface Slot {
   id: string;
   label: string;
@@ -86,6 +92,7 @@ function categoryOf(exerciseId: string): ExerciseCategory | undefined {
   return getExercise(exerciseId)?.category;
 }
 
+/** How many exercises the plan has for each slot, and whether the minimum is met. */
 export function checkSlots(exercises: readonly PrescribedExercise[]): SlotStatus[] {
   return SESSION_SLOTS.map((slot) => {
     const have = exercises.filter((e) => categoryOf(e.exerciseId) === slot.category).length;
@@ -93,6 +100,7 @@ export function checkSlots(exercises: readonly PrescribedExercise[]): SlotStatus
   });
 }
 
+/** The muscle groups a stretching routine should cover. */
 export const STRETCH_TARGETS = [
   'quads',
   'hamstrings',
@@ -104,6 +112,7 @@ export const STRETCH_TARGETS = [
 ] as const;
 export type StretchTarget = (typeof STRETCH_TARGETS)[number];
 
+/** Which stretch exercise covers which muscle group. */
 const STRETCH_TARGET_BY_EXERCISE: Readonly<Record<string, StretchTarget>> = {
   quad_stretch: 'quads',
   hamstring_stretch: 'hamstrings',
@@ -114,6 +123,7 @@ const STRETCH_TARGET_BY_EXERCISE: Readonly<Record<string, StretchTarget>> = {
   upper_back_stretch: 'upper back',
 };
 
+/** Which muscle groups the planned stretches cover and which are still missing. */
 export function stretchCoverage(exercises: readonly PrescribedExercise[]): {
   covered: StretchTarget[];
   missing: StretchTarget[];
@@ -129,6 +139,7 @@ export function stretchCoverage(exercises: readonly PrescribedExercise[]): {
   };
 }
 
+/** Messages for a prescribed exercise that falls outside the usual dose. */
 export function doseWarnings(item: PrescribedExercise, def: ExerciseDefinition): string[] {
   const out: string[] = [];
   const { sets, reps } = DOSE_GUIDELINES;
@@ -146,6 +157,7 @@ export function doseWarnings(item: PrescribedExercise, def: ExerciseDefinition):
   return out;
 }
 
+/** Messages for a cardio block that falls outside the usual dose. */
 export function cardioWarnings(cardio: CardioBlock): string[] {
   const out: string[] = [];
   const { warmupMin, cooldownMin, cardioMainMin } = DOSE_GUIDELINES;
@@ -164,6 +176,7 @@ export function cardioWarnings(cardio: CardioBlock): string[] {
   return out;
 }
 
+/** Messages for when an exercise may not suit the patient's mobility aid, falls risk or level of supervision. */
 export function suitabilityWarnings(
   patient: Pick<PatientData, 'mobilityAid' | 'fallsRisk' | 'supervision'>,
   def: ExerciseDefinition,
@@ -182,6 +195,7 @@ export function suitabilityWarnings(
   return out;
 }
 
+/** True when each of the last two sessions reached the rep target. */
 export function shouldProgress(
   goodRepsPerSession: readonly number[],
   target: number = DOSE_GUIDELINES.progressionReps,
@@ -190,6 +204,7 @@ export function shouldProgress(
   return goodRepsPerSession.slice(-2).every((n) => n >= target);
 }
 
+/** Sessions left before the plan is due for rotation. Zero means it is due now. */
 export function sessionsUntilRotation(completedSessions: number): number {
   const block = DOSE_GUIDELINES.rotationSessions;
   if (completedSessions <= 0) return block;
