@@ -1,3 +1,4 @@
+"""Hub side calibration jobs. A job collects reps from a camera, lets a clinician keep or discard each one and then builds a template from the kept reps."""
 import time
 import uuid
 
@@ -16,6 +17,7 @@ ACTIVE = ("pending", "active")
 
 
 class CalibrationError(Exception):
+    """Raised for a bad request. The code says what kind of failure it was so the routes can pick a status."""
 
     def __init__(self, code, message):
         super().__init__(message)
@@ -24,16 +26,19 @@ class CalibrationError(Exception):
 
 
 def _number(value):
+    """True for ints and floats, but not for booleans."""
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 class CalibrationManager:
+    """Keeps every calibration job in memory and enforces the rules for creating, claiming, filling and finishing them."""
     def __init__(self, exercise_configs=None, clock=time.time):
         self.exercise_configs = exercise_configs
         self.clock = clock
         self._jobs = {}
 
     def create(self, patient_id, exercise, camera_id=None, target_reps=DEFAULT_TARGET):
+        """Start a job for a patient and exercise. An older active job for the same patient and exercise, or on the same camera, is cancelled."""
         if not isinstance(patient_id, str) or not patient_id.strip() or len(patient_id) > 64:
             raise CalibrationError("invalid", "patient_id is required")
         if not isinstance(exercise, str) or not exercise:
@@ -68,12 +73,14 @@ class CalibrationManager:
         return job
 
     def get(self, job_id):
+        """Look up a job by id."""
         job = self._jobs.get(job_id)
         if job is None:
             raise CalibrationError("not_found", "No such calibration")
         return job
 
     def claim(self, job_id, camera_id):
+        """Let a camera take a job. A job can only be held by one camera."""
         job = self.get(job_id)
         if job["status"] not in ACTIVE:
             raise CalibrationError("conflict", f"Calibration is {job['status']}")
@@ -85,20 +92,24 @@ class CalibrationManager:
         return job
 
     def cancel(self, job_id):
+        """Cancel a job that is still active. Finished jobs are left alone."""
         job = self.get(job_id)
         if job["status"] in ACTIVE:
             self._close(job, "cancelled", "Cancelled")
         return job
 
     def expire(self):
+        """Cancel jobs nobody has touched for a while and forget old closed ones."""
         now = self.clock()
         for job in self._jobs.values():
             if job["status"] in ACTIVE and now - job["updated"] > JOB_IDLE_EXPIRY:
                 self._close(job, "cancelled", "Expired after 30 minutes of inactivity")
+        # Closed jobs are kept for a short time so the page can still show how they ended
         for job_id in [i for i, j in self._jobs.items() if j["status"] not in ACTIVE and now - j["updated"] > JOB_IDLE_EXPIRY]:
             del self._jobs[job_id]  # finished/cancelled jobs are forgotten after a while
 
     def add_rep(self, job_id, camera_id, payload):
+        """Store one rep sent by the camera after checking its shape. A repeated event id returns the existing rep, with a flag set to True."""
         job = self.get(job_id)
         if job["status"] not in ACTIVE:
             raise CalibrationError("conflict", f"Calibration is {job['status']}")
@@ -142,6 +153,7 @@ class CalibrationManager:
         return index, False
 
     def set_frame(self, job_id, camera_id, frame):
+        """Store the latest preview frame from the camera for the clinician's page."""
         job = self.get(job_id)
         if job["status"] not in ACTIVE:
             raise CalibrationError("conflict", f"Calibration is {job['status']}")
@@ -158,6 +170,7 @@ class CalibrationManager:
         return job
 
     def decide(self, job_id, index, decision):
+        """Mark a rep as kept or discarded."""
         job = self.get(job_id)
         if job["status"] not in ACTIVE:
             raise CalibrationError("conflict", f"Calibration is {job['status']}")
@@ -169,6 +182,7 @@ class CalibrationManager:
         return job
 
     def finish(self, job_id):
+        """Build the template from the kept reps and close the job. Returns the template with any warnings about its quality."""
         job = self.get(job_id)
         if job["status"] not in ACTIVE:
             raise CalibrationError("conflict", f"Calibration is {job['status']}")
@@ -178,6 +192,7 @@ class CalibrationManager:
         if job["camera_id"] is None:
             raise CalibrationError("conflict", "No camera has joined this calibration yet")
 
+        # The slot name includes the camera so each camera gets its own template
         slot = f"{job['exercise']}@{job['camera_id']}"
         template = assemble_template(job["patient_id"], slot, [
             {"samples": r["samples"], "duration_sec": r["duration_sec"]} for r in kept])
@@ -198,10 +213,12 @@ class CalibrationManager:
         return job["result"]
 
     def active_jobs(self):
+        """Short summaries of the jobs that are still active, for cameras to poll."""
         self.expire()
         return [self._brief(j) for j in self._jobs.values() if j["status"] in ACTIVE]
 
     def summary(self, job):
+        """Full state of one job for the clinician's page, without the raw samples."""
         counts = {s: sum(1 for r in job["reps"] if r["status"] == s) for s in ("pending", "kept", "discarded")}
         return {
             **self._brief(job), "kept": counts["kept"], "discarded": counts["discarded"], "pending": counts["pending"],
@@ -214,24 +231,29 @@ class CalibrationManager:
         }
 
     def rep_detail(self, job_id, index):
+        """Samples and skeleton frames for one rep, so the page can replay it."""
         rep = self._rep(self.get(job_id), index)
         return {k: rep[k] for k in ("index", "status", "rom", "duration_sec", "partial_return", "samples", "frames")}
 
     @staticmethod
     def _brief(job):
+        """The few fields a camera needs to know about a job."""
         return {"id": job["id"], "patient_id": job["patient_id"], "exercise": job["exercise"],
                 "camera_id": job["camera_id"], "status": job["status"], "target_reps": job["target_reps"]}
 
     @staticmethod
     def _rep(job, index):
+        """Look up a rep by its one based index."""
         if not isinstance(index, int) or not 1 <= index <= len(job["reps"]):
             raise CalibrationError("not_found", "No such rep")
         return job["reps"][index - 1]
 
     def _touch(self, job):
+        """Record that the job was just used so it does not expire."""
         job["updated"] = self.clock()
 
     def _close(self, job, status, message):
+        """End a job and drop its preview frame."""
         job["status"] = status
         job["message"] = message
         job["last_frame"] = None
