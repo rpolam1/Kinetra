@@ -1,3 +1,4 @@
+"""Checks that rep counting and scoring still work when the camera is not square on to the person, by rotating the body in 3D."""
 import math
 import os
 import random
@@ -18,6 +19,7 @@ DEPTH_NOISE = 3.0
 
 
 def pose3d(joint, theta, yaw_deg, rng=None):
+    """Like the flat pose, but rotated by yaw degrees about the vertical axis, with depth noise on every point."""
     flat = pose(joint, theta)
     c, s = math.cos(math.radians(yaw_deg)), math.sin(math.radians(yaw_deg))
     out = []
@@ -26,6 +28,7 @@ def pose3d(joint, theta, yaw_deg, rng=None):
             out.append(PoseLandmark(lm.x, lm.y, 0.0, 0.0, 0.0, 0.0, 0.0))
             continue
         px, py = lm.x * 640.0, lm.y * 480.0
+        # Rotating about the vertical axis changes the apparent angles in the picture
         u = px - (60.0 if idx in RIGHT_SIDE else 0.0) - 290.0
         lat = HIP_WIDTH if idx in LEFT_SIDE else -HIP_WIDTH
         x_cam = u * c + lat * s
@@ -38,12 +41,14 @@ def pose3d(joint, theta, yaw_deg, rng=None):
 
 
 class ViewRig(Rig):
+    """A rig that feeds rotated 3D poses."""
     def __init__(self, eid, yaw, template=None, seed=1, noise=1.2):
         super().__init__(eid, template, seed, noise)
         self.yaw = yaw
         self.depth_rng = random.Random(seed + 100)
 
     def feed(self, theta):
+        """Send one frame at the given angle, rotated by the rig's yaw."""
         lms = pose3d(self.cfg["angle_joint"], theta + self.rng.gauss(0, self.noise), self.yaw, self.depth_rng)
         f = self.ext.extract(lms, SHAPE)
         assert f is not None
@@ -53,6 +58,7 @@ class ViewRig(Rig):
 
 
 def run_view_reps(eid, yaw, template=None, n=REPS, depth=1.0, seed=1):
+    """Like run_reps, but with the person rotated by yaw degrees."""
     rig = ViewRig(eid, yaw, template, seed)
     rest, peak = endpoints(rig.cfg)
     rig.hold(rest, 1.5)
@@ -64,6 +70,7 @@ def run_view_reps(eid, yaw, template=None, n=REPS, depth=1.0, seed=1):
 
 
 def view_template(eid, yaw=0):
+    """Calibrate with the person rotated by yaw degrees and return the template."""
     rig = ViewRig(eid, yaw)
     captured = []
     original = rig.judge.segmenter.extract_completed_reps_with_meta
