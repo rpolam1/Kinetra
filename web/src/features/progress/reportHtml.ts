@@ -3,6 +3,7 @@ import type { ExerciseProgress, HeartProgress, Patient, ProgressReport, WeekPoin
 import { changeTone, describeChange, fmtDegrees, fmtSeconds, metricsFor } from './format';
 import type { MetricSpec } from './format';
 
+// Brand colours for the report. They are plain hex because the report is a separate document with no access to the page styles.
 const TEAL = '#0f766e';
 const TEAL_DARK = '#0b3b38';
 const TEAL_SOFT = '#ccfbf1';
@@ -10,12 +11,15 @@ const AMBER = '#b45309';
 const INK = '#0f172a';
 const MUTED = '#64748b';
 const GRID = '#e2e8f0';
+// The most points shown in the highlights list
 const MAX_HIGHLIGHTS = 6;
 
+/** Escapes text so it can go inside HTML. Patient names and goals are typed by staff, so they cannot be trusted as markup. */
 export function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/** Wraps text as a CSS string for the page footer, which is set through a custom property. */
 export function cssString(text: string): string {
   const body = text
     .replace(/[\r\n]+/g, ' ')
@@ -25,10 +29,12 @@ export function cssString(text: string): string {
   return `"${body}"`;
 }
 
+/** A long date in the person's own locale, or an empty string when there is no date. */
 function longDate(ms: number | null): string {
   return ms === null ? '' : new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+/** The options for one chart in the report. */
 interface ChartOptions<T extends { weekStart: number }> {
   pick: (w: T) => number | null;
   format: (v: number) => string;
@@ -37,10 +43,12 @@ interface ChartOptions<T extends { weekStart: number }> {
   color?: string;
 }
 
+// The sizes of the small charts, in SVG units
 const W = 240;
 const H = 112;
 const PAD = { left: 38, right: 14, top: 14, bottom: 22 };
 
+/** Draws a weekly line chart as an inline SVG string. */
 function lineChart<T extends { weekStart: number }>(weeks: readonly T[], o: ChartOptions<T>): string {
   const values = weeks.map(o.pick);
   const present = values.filter((v): v is number => v !== null);
@@ -85,6 +93,7 @@ function lineChart<T extends { weekStart: number }>(weeks: readonly T[], o: Char
   );
 }
 
+/** Draws the repetitions per week as a bar chart across the full page width. */
 function barChart(weeks: readonly WeekPoint[]): string {
   const width = 720;
   const height = 150;
@@ -94,6 +103,7 @@ function barChart(weeks: readonly WeekPoint[]): string {
   const ih = height - pad.top - pad.bottom;
   const slot = iw / weeks.length;
   const bar = Math.min(slot * 0.62, 38);
+  // Labels are skipped on long reports so the weeks do not run into each other
   const every = Math.ceil(weeks.length / 12);
   const bars = weeks
     .map((w, i) => {
@@ -116,12 +126,14 @@ function barChart(weeks: readonly WeekPoint[]): string {
   return `<svg viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="Repetitions per week">${grid}${bars}</svg>`;
 }
 
+/** The text and background colours for a change chip. */
 function toneColor(tone: 'green' | 'amber' | 'slate'): { fg: string; bg: string } {
   if (tone === 'green') return { fg: '#047857', bg: '#d1fae5' };
   if (tone === 'amber') return { fg: AMBER, bg: '#fef3c7' };
   return { fg: '#475569', bg: '#f1f5f9' };
 }
 
+/** The chips that show how each metric changed since the first week. */
 function chips(ex: ExerciseProgress): string {
   if (!ex.change) return `<p class="note">Changes appear once there are two or more weeks of data.</p>`;
   const change = ex.change;
@@ -135,6 +147,7 @@ function chips(ex: ExerciseProgress): string {
   );
 }
 
+/** A week by week table for timed exercises. */
 function holdTable(weeks: readonly WeekPoint[]): string {
   const dash = '&mdash;';
   const rows = weeks
@@ -151,6 +164,7 @@ function holdTable(weeks: readonly WeekPoint[]): string {
   );
 }
 
+/** A week by week table for rep based exercises. */
 function table(weeks: readonly WeekPoint[]): string {
   const dash = '&mdash;';
   const rows = weeks
@@ -169,6 +183,7 @@ function table(weeks: readonly WeekPoint[]): string {
   );
 }
 
+/** One exercise block with its charts, change chips and weekly table. */
 function exerciseSection(ex: ExerciseProgress): string {
   const charts = metricsFor(ex).map(
     (m: MetricSpec) =>
@@ -188,6 +203,7 @@ function exerciseSection(ex: ExerciseProgress): string {
   );
 }
 
+/** The heart rate block, shown only when a watch was worn. */
 function heartSection(heart: HeartProgress): string {
   const bpm = (v: number) => `${Math.round(v)}`;
   const share = (v: number | null) => (v === null ? '&mdash;' : formatPercent(v));
@@ -209,6 +225,7 @@ function heartSection(heart: HeartProgress): string {
   );
 }
 
+/** The short plain language points at the top of the report. The thresholds are small enough to ignore noise from week to week. */
 export function highlights(report: ProgressReport): string[] {
   const out: string[] = [];
   if (report.heart && report.heart.inZoneRate !== null) {
@@ -234,6 +251,7 @@ export function highlights(report: ProgressReport): string[] {
   return out.slice(0, MAX_HIGHLIGHTS);
 }
 
+// The print layout. Colours are forced so the banner and charts keep their colour on paper.
 const STYLE = `
 @page { size: auto; margin: 14mm 13mm 17mm; @bottom-left { content: var(--footer-left); font: 8pt Helvetica, Arial, sans-serif; color: ${MUTED}; } @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8pt Helvetica, Arial, sans-serif; color: ${MUTED}; } }
 * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -285,6 +303,7 @@ tbody tr:nth-child(even) td { background: #f8fafc; }
 .legal { margin-top: 5mm; font-size: 8pt; color: ${MUTED}; border-top: 0.2mm solid ${GRID}; padding-top: 2mm; }
 `;
 
+/** Builds the whole report as one self contained HTML document so it can be printed from a hidden frame. */
 export function buildReportHtml(patient: Patient, report: ProgressReport, generatedAt: number): string {
   const name = `${patient.firstName} ${patient.lastName}`;
   const age = computeAge(patient.dateOfBirth);
