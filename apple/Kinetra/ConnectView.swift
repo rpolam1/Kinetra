@@ -1,5 +1,6 @@
 import SwiftUI
 
+/** The first screen. The person types the hub address and an optional access key. */
 struct ConnectView: View {
     @Environment(AppModel.self) private var model
     @State private var address = ""
@@ -11,6 +12,7 @@ struct ConnectView: View {
         case key
     }
 
+    // The fields are filled with the saved values so changing the hub does not mean typing everything again
     var body: some View {
         ScrollView {
             VStack(spacing: 28) {
@@ -84,11 +86,13 @@ struct ConnectView: View {
         }
     }
 
+    /** Dismisses the keyboard and tries to connect. */
     private func connect() {
         focused = nil
         Task { await model.connect(address: address, key: key) }
     }
 
+    /** Puts a title above a field and gives the field a rounded background. */
     private func labeled<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
