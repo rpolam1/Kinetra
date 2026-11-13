@@ -1,3 +1,4 @@
+"""Two cameras with skewed clocks watch the same two people. The hub should end up with one set of reps per person."""
 import os
 import random
 import sys
@@ -20,14 +21,17 @@ T0 = 1_000_000.0  # simulated epoch (hub time)
 
 
 def shifted(lms, dx, rng, jitter):
+    """A copy of the landmarks moved sideways, with jitter on every point."""
     return [T.LM(l.x + dx + rng.gauss(0, jitter), l.y + rng.gauss(0, jitter), l.visibility) for l in lms]
 
 
 def chest_px(lms):
+    """Chest position in pixels."""
     return ((lms[11].x + lms[12].x) / 2 * W, (lms[11].y + lms[12].y) / 2 * H)
 
 
 def build_scene():
+    """Frames for two people doing different numbers of reps, one of them with shallow reps."""
     rng = random.Random(5)
     good = lambda: dict(T.good(rng))
     a_specs = [good() for _ in range(6)]
@@ -38,6 +42,7 @@ def build_scene():
 
 
 def run_scene(hub, tag_schedule, skews, seed_base=0):
+    """Play the scene through two camera pipelines that report to the hub."""
     cfgs = load_exercise_configs(EXERCISES_PATH)
     # calibration template for both patients, stored on the hub
     cal_reps, _ = T.calibration()
