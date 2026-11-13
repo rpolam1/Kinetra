@@ -1,5 +1,6 @@
 import { DataError } from '../repositories';
 
+/** Turn a Firebase error into a DataError with a message a person can read. */
 export function mapFirebaseError(error: unknown): DataError {
   if (error instanceof DataError) return error;
   const code = (error as { code?: string } | null)?.code ?? '';
@@ -13,6 +14,7 @@ export function mapFirebaseError(error: unknown): DataError {
   return new DataError('unavailable', error instanceof Error ? error.message : 'Unexpected database error');
 }
 
+/** Run Firebase work and report any failure as a DataError. */
 export async function guard<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
