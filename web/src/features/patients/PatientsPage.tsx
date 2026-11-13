@@ -11,6 +11,7 @@ import { Icon } from '../../ui/Icon';
 import { CheckboxField, TextField } from '../../ui/fields';
 import { PatientRow } from './PatientRow';
 
+/** Find patients by name, code or tag number. With nothing typed it lists recently updated patients. */
 export function PatientsPage() {
   const { patients } = useData();
   const { can } = useAuth();
@@ -21,6 +22,7 @@ export function PatientsPage() {
   const rows = result.rows.filter((p) => includeArchived || p.status === 'active');
   const typedButTooShort = query.trim() !== '' && classifySearchQuery(query).kind === 'empty';
 
+  // The results area has a minimum height so the page does not jump while results load
   return (
     <div className="space-y-6">
       <PageHeader
