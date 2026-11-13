@@ -12,6 +12,7 @@ import type { PatientRepository } from '../repositories';
 import { lowestFreeTag } from '../registry';
 import type { MemoryStore } from './MemoryStore';
 
+/** Patients kept in the in memory store. Results are cloned so callers cannot change the stored data by accident. */
 export class MemoryPatientRepository implements PatientRepository {
   constructor(private readonly store: MemoryStore) {}
 
