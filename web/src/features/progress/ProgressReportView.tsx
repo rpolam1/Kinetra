@@ -7,6 +7,7 @@ import { changeTone, describeChange, metricsFor } from './format';
 import { printProgressReport } from './printReport';
 import { TrendChart } from './TrendChart';
 
+/** One headline number with a small label above it. */
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-slate-50 px-4 py-3">
@@ -16,7 +17,9 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** The on screen progress report. It shows overall totals, heart rate when a watch was worn, and a trend for each exercise. */
 export function ProgressReportView({ patient, sessions }: { patient: Patient; sessions: readonly PatientSession[] }) {
+  // The report is rebuilt only when the sessions change, because it walks every session
   const report = useMemo(() => buildProgressReport(sessions), [sessions]);
 
   if (report.sessionCount === 0) {
