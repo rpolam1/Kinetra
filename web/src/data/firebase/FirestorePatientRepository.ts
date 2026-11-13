@@ -27,8 +27,10 @@ import { guard } from './errors';
 
 const PATIENTS = 'patients';
 const REGISTRY_PATH = ['meta', 'registry'] as const;
+// The highest private use character, so a range query on a prefix matches every name that starts with it
 const PREFIX_END = '\uf8ff';
 
+/** Read the registry document. A missing document gives an empty registry. */
 function parseRegistry(data: DocumentData | undefined): Registry {
   if (!data) return emptyRegistry();
   const tags: TagRegistry = {};
@@ -46,6 +48,7 @@ function toPatient(id: string, data: DocumentData): Patient {
   return { ...(data as Omit<Patient, 'id'>), id };
 }
 
+/** Patients in Firestore. The tag registry is one document that is updated in the same transaction as the patient, so two patients can never get the same tag or code. */
 export class FirestorePatientRepository implements PatientRepository {
   constructor(private readonly db: Firestore) {}
 
@@ -53,6 +56,7 @@ export class FirestorePatientRepository implements PatientRepository {
     return doc(this.db, ...REGISTRY_PATH);
   }
 
+  /** Add a patient. One transaction gives them the next patient code and the lowest free tag. */
   create(data: PatientData, actorUid: string): Promise<Patient> {
     const clean = cleanPatientData(data);
     if (hasErrors(validatePatientData(clean))) {
@@ -95,6 +99,7 @@ export class FirestorePatientRepository implements PatientRepository {
     });
   }
 
+  /** Save changes to a patient and refresh their entry in the tag registry. */
   update(id: string, data: PatientData, _actorUid: string): Promise<Patient> {
     const clean = cleanPatientData(data);
     if (hasErrors(validatePatientData(clean))) {
@@ -124,6 +129,7 @@ export class FirestorePatientRepository implements PatientRepository {
     );
   }
 
+  /** Search by code, tag or name. A name search runs on both name forms and merges the results, so the first name or the last name can come first. */
   search(queryText: string, limit: number = DEFAULT_SEARCH_LIMIT): Promise<Patient[]> {
     const intent = classifySearchQuery(queryText);
     const col = collection(this.db, PATIENTS);
@@ -153,6 +159,7 @@ export class FirestorePatientRepository implements PatientRepository {
     });
   }
 
+  /** The most recently edited patients. */
   recent(limit: number = DEFAULT_SEARCH_LIMIT): Promise<Patient[]> {
     return guard(async () => {
       const q = query(collection(this.db, PATIENTS), orderBy('updatedAt', 'desc'), limitTo(limit));
@@ -160,6 +167,7 @@ export class FirestorePatientRepository implements PatientRepository {
     });
   }
 
+  /** Archive a patient and free their tag. */
   archive(id: string, _actorUid: string): Promise<Patient> {
     return guard(() =>
       runTransaction(this.db, async (tx) => {
@@ -178,6 +186,7 @@ export class FirestorePatientRepository implements PatientRepository {
     );
   }
 
+  /** Give a patient a different tag. Fails when another patient already wears it. */
   reassignTag(id: string, tagId: number): Promise<Patient> {
     return guard(() =>
       runTransaction(this.db, async (tx) => {
