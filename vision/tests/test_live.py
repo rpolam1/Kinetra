@@ -1,9 +1,11 @@
+"""Tests for the status light rules, presence tracking and the event bus."""
 import json, os, sys, threading, time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from server.live import LiveBus, PresenceTracker, compute_light, REST_AFTER, PRESENCE_TIMEOUT
 
 
 def light(**kw):
+    """The light name for a person who is present and recently scored well, with any changes passed in."""
     base = dict(present=True, now=100.0, last_rep_at=99.0, recent_scores=[95, 92, 90])
     base.update(kw)
     return compute_light(**base)[0]
@@ -47,6 +49,7 @@ def test_presence_expires():
 
 
 def _take(gen, n):
+    """The first n real events from a stream, skipping comment lines."""
     out = []
     for chunk in gen:
         if not chunk.startswith(":"):
