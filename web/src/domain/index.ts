@@ -1,3 +1,4 @@
+/** Everything the rest of the app imports from the domain layer. */
 export * from './types';
 export * from './exercises';
 export * from './patients';
