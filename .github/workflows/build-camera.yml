@@ -1,3 +1,4 @@
+
 name: build camera app
 
 # Runs by hand, or when a version tag such as v1.2 is pushed
@@ -19,8 +20,10 @@ jobs:
         include:
           - { os: windows-latest, name: windows-x64 }
           - { os: ubuntu-22.04, name: linux-x64 }
-          - { os: ubuntu-22.04-arm, name: linux-arm64 }  # Jetson and Raspberry Pi class devices
+          - { os: ubuntu-22.04-arm, name: linux-arm64 } # Jetson and Raspberry Pi class devices
+
     runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -28,10 +31,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      # OpenCV needs these libraries on Linux
+      # OpenCV and MediaPipe need these libraries on Linux
       - name: system libraries (linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgl1 \
+            libglib2.0-0 \
+            libegl1
 
       - name: install
         working-directory: vision
@@ -53,16 +61,22 @@ jobs:
         working-directory: vision
         shell: bash
         run: |
-          if [ "$RUNNER_OS" = "Windows" ]; then dist/kinetra-camera/kinetra-camera.exe --selftest
-          else dist/kinetra-camera/kinetra-camera --selftest; fi
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            dist/kinetra-camera/kinetra-camera.exe --selftest
+          else
+            dist/kinetra-camera/kinetra-camera --selftest
+          fi
 
       # Windows gets a zip and the Linux builds get a tar file
       - name: package
         working-directory: vision/dist
         shell: bash
         run: |
-          if [ "$RUNNER_OS" = "Windows" ]; then 7z a ../../kinetra-camera-${{ matrix.name }}.zip kinetra-camera
-          else tar czf ../../kinetra-camera-${{ matrix.name }}.tar.gz kinetra-camera; fi
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            7z a ../../kinetra-camera-${{ matrix.name }}.zip kinetra-camera
+          else
+            tar czf ../../kinetra-camera-${{ matrix.name }}.tar.gz kinetra-camera
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
