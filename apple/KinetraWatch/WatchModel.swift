@@ -29,6 +29,7 @@ final class WatchModel {
     var people: [RosterPerson] = []
     var isLoadingPeople = false
     var summary: WorkoutSummary?
+    var hubReachable: Bool?
 
     private let workout = WorkoutManager()
     private let link = WatchLink()
@@ -88,6 +89,19 @@ final class WatchModel {
     }
 
     /** Loads the roster, trying each hub address until one answers. */
+    /** Checks whether the hub answers, so the ready screen can say so before the person starts. The saved IP address is tried as well as the name. */
+    func checkHub() async {
+        guard let pairing else { return }
+        hubReachable = nil
+        for url in pairing.candidateURLs {
+            if await HubDiscovery.probe(url) != nil {
+                hubReachable = true
+                return
+            }
+        }
+        hubReachable = false
+    }
+
     func loadPeople() async {
         guard let pairing, !pairing.candidateURLs.isEmpty else { return }
         isLoadingPeople = true

@@ -1,4 +1,5 @@
 import SwiftUI
+import WatchKit
 
 /** Picks the watch screen from the current phase. */
 struct WatchRootView: View {
@@ -6,197 +7,348 @@ struct WatchRootView: View {
 
     var body: some View {
         NavigationStack {
-            switch model.phase {
-            case .needsSetup:
-                SetupNeededView()
-            case .choosing:
-                WatchPersonPicker()
-            case .ready:
-                ReadyView()
-            case .starting:
-                ProgressView("Starting").tint(Brand.teal)
-            case .running:
-                RunningView()
-            case .summary:
-                SummaryView()
+            Group {
+                switch model.phase {
+                case .needsSetup:
+                    SetupNeededView()
+                case .choosing:
+                    WatchPersonPicker()
+                case .ready:
+                    ReadyView()
+                case .starting:
+                    StartingView()
+                case .running:
+                    RunningView()
+                case .summary:
+                    SummaryView()
+                }
             }
+            .containerBackground(for: .navigation) { WatchBackdrop(tint: Brand.teal) }
         }
-        .tint(Brand.teal)
+        .tint(Brand.mint)
+        .animation(.smooth(duration: 0.4), value: model.phase)
+    }
+}
+
+/** The background. It carries a glow in the colour of the heart rate zone, and goes black when the screen is dimmed. */
+struct WatchBackdrop: View {
+    var tint: Color
+    var urgent = false
+
+    @Environment(\.isLuminanceReduced) private var dimmed
+
+    var body: some View {
+        if dimmed {
+            Color.black
+        } else {
+            ZStack {
+                Brand.ink900
+                RadialGradient(colors: [tint.opacity(0.38), .clear], center: .top, startRadius: 0, endRadius: 170)
+                // A very high heart rate makes the whole screen throb, so it is noticed without looking closely
+                if urgent {
+                    TimelineView(.animation(minimumInterval: 1.0 / 15.0)) { context in
+                        let wave = 0.5 + 0.5 * sin(context.date.timeIntervalSinceReferenceDate * 5)
+                        tint.opacity(0.08 + 0.2 * wave)
+                    }
+                }
+            }
+            .animation(.easeInOut(duration: 0.6), value: tint)
+        }
     }
 }
 
 /** Tells the person to finish setup on the iPhone. */
 struct SetupNeededView: View {
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "iphone.and.arrow.forward")
-                .font(.title)
-                .foregroundStyle(Brand.teal)
+        VStack(spacing: 10) {
+            PulseLogo(height: 26)
             Text("Set up on iPhone")
-                .font(.headline)
+                .font(.system(.headline, design: .rounded))
             Text("Open Kinetra on your iPhone, connect to the hub and choose who is exercising.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
-        .padding()
+        .padding(.horizontal, 6)
     }
 }
 
-/** The start screen with the person's name and tag. */
+/** The start button. A ring spreads out from it so it looks alive, and it presses in when tapped. */
+private struct StartButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.white)
+            .background {
+                ZStack {
+                    Capsule()
+                        .fill(Brand.teal.opacity(0.55))
+                        .phaseAnimator([false, true]) { view, phase in
+                            view.scaleEffect(x: phase ? 1.07 : 1, y: phase ? 1.32 : 1).opacity(phase ? 0 : 0.7)
+                        } animation: { _ in .easeOut(duration: 1.8) }
+                    Capsule()
+                        .fill(LinearGradient(colors: [Color(hex: 0x2CA797), Brand.teal], startPoint: .top, endPoint: .bottom))
+                }
+            }
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
+
+/** The start screen with the person's name, the hub status and one big button. */
 struct ReadyView: View {
     @Environment(WatchModel.self) private var model
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 if let person = model.pairing?.person {
-                    VStack(spacing: 2) {
-                        Text(person.displayName)
-                            .font(.title3.bold())
-                            .multilineTextAlignment(.center)
-                        Label("Tag \(person.tagId)", systemImage: "qrcode")
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        Avatar(name: person.displayName, size: 34)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(person.displayName)
+                                .font(.system(.headline, design: .rounded))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                            Text("Tag \(person.tagId)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
                     }
                 }
+
                 if let message = model.errorMessage {
-                    Text(message).font(.caption2).foregroundStyle(.red).multilineTextAlignment(.center)
+                    Text(message)
+                        .font(.caption2)
+                        .foregroundStyle(HeartStatus.high.tint)
+                        .multilineTextAlignment(.center)
                 }
+
                 Button {
                     Task { await model.start() }
                 } label: {
-                    Label("Start", systemImage: "heart.fill")
-                        .font(.headline)
+                    HStack(spacing: 8) {
+                        Image(systemName: "heart.fill").symbolEffect(.pulse)
+                        Text("Start").font(.system(.title3, design: .rounded, weight: .bold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Brand.teal)
+                .buttonStyle(StartButtonStyle())
+                .padding(.vertical, 6)
+
+                hubStatus
 
                 Button("Change person") { model.changePerson() }
                     .font(.footnote)
+                    .foregroundStyle(Brand.ink200)
             }
-            .padding(.top, 4)
+            .padding(.horizontal, 4)
         }
-        .navigationTitle("Kinetra")
+        .task { await model.checkHub() }
+        .sensoryFeedback(.success, trigger: model.hubReachable) { _, new in new == true }
+    }
+
+    // The result tells the person early if the hub is off, instead of finding out after a workout
+    @ViewBuilder
+    private var hubStatus: some View {
+        switch model.hubReachable {
+        case .some(true):
+            HStack(spacing: 6) {
+                LiveDot()
+                Text("Hub ready").font(.caption2).foregroundStyle(.secondary)
+            }
+        case .some(false):
+            Button {
+                Task { await model.checkHub() }
+            } label: {
+                HStack(spacing: 6) {
+                    LiveDot(color: HeartStatus.above.tint, active: false)
+                    Text("Hub not found. Tap to retry").font(.caption2).foregroundStyle(HeartStatus.above.tint)
+                }
+            }
+            .buttonStyle(.plain)
+        case .none:
+            HStack(spacing: 6) {
+                ProgressView().scaleEffect(0.6).frame(width: 12, height: 12)
+                Text("Checking hub").font(.caption2).foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
-/** A ring around the heart rate. The thick shaded arc is the target zone and the thin arc is where the heart rate sits. */
-struct HeartRing: View {
-    let bpm: Int?
-    let reading: HeartReading
+/** Shown for the moment between pressing start and the first heart rate. */
+struct StartingView: View {
+    @State private var spin = false
 
+    var body: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                Circle().stroke(Brand.ink600, lineWidth: 6)
+                Circle()
+                    .trim(from: 0, to: 0.28)
+                    .stroke(Brand.mint, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                    .rotationEffect(.degrees(spin ? 360 : 0))
+                Image(systemName: "heart.fill")
+                    .font(.title3)
+                    .foregroundStyle(Brand.mint)
+                    .symbolEffect(.pulse)
+            }
+            .frame(width: 70, height: 70)
+            Text("Starting")
+                .font(.system(.headline, design: .rounded))
+        }
+        .onAppear {
+            withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) { spin = true }
+        }
+    }
+}
+
+/** The workout screen. The first page is the heart rate gauge. Swiping up shows the timer and the end button, so the workout cannot be ended by a stray tap. */
+struct RunningView: View {
+    @Environment(WatchModel.self) private var model
+    @State private var confirmEnd = false
+
+    private var reading: HeartReading { model.reading }
     private var tint: Color { reading.status.tint }
 
     var body: some View {
-        ZStack {
-            Circle().stroke(Color.white.opacity(0.15), lineWidth: 12)
-            if let zone = reading.zone, reading.status != .unreliable {
-                let band = HeartMath.zoneBand(zone)
-                Circle()
-                    .trim(from: band.lowerBound, to: band.upperBound)
-                    .stroke(Color.green.opacity(0.35), style: StrokeStyle(lineWidth: 12, lineCap: .butt))
-                    .rotationEffect(.degrees(-90))
-            }
-            if let bpm {
-                Circle()
-                    .trim(from: 0, to: max(0.02, HeartMath.position(bpm: bpm, zone: reading.zone)))
-                    .stroke(tint, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeOut(duration: 0.4), value: bpm)
-            }
-            VStack(spacing: 0) {
-                Image(systemName: "heart.fill")
-                    .font(.caption)
-                    .foregroundStyle(tint)
-                    .symbolEffect(.pulse, isActive: bpm != nil)
-                Text(bpm.map(String.init) ?? "--")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                Text("BPM")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
+        TabView {
+            gaugePage
+            detailsPage
         }
-        .padding(8)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Heart rate \(bpm.map(String.init) ?? "unknown") beats per minute. \(reading.status.title)")
+        .tabViewStyle(.verticalPage)
+        .containerBackground(for: .tabView) { WatchBackdrop(tint: tint, urgent: reading.status == .high) }
+        .navigationBarBackButtonHidden(true)
+        .confirmationDialog("End the workout?", isPresented: $confirmEnd, titleVisibility: .visible) {
+            Button("End workout", role: .destructive) { Task { await model.end() } }
+            Button("Keep going", role: .cancel) {}
+        }
     }
-}
 
-/** The screen during a workout. */
-struct RunningView: View {
-    @Environment(WatchModel.self) private var model
+    private var gaugePage: some View {
+        VStack(spacing: 4) {
+            HeartGauge(bpm: model.displayedBpm, reading: reading, lineWidth: 10, showsCaption: false)
+                .padding(.horizontal, 4)
+            Label(reading.status.title, systemImage: reading.status.symbol)
+                .font(.system(.footnote, design: .rounded, weight: .semibold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .symbolEffect(.bounce, value: reading.status)
+        }
+    }
 
-    var body: some View {
+    private var detailsPage: some View {
         ScrollView {
-            VStack(spacing: 6) {
-                HeartRing(bpm: model.displayedBpm, reading: model.reading)
-                    .frame(height: 130)
+            VStack(spacing: 10) {
+                if let started = model.startedAt {
+                    TimelineView(.periodic(from: started, by: 1)) { context in
+                        Text(HeartMath.elapsedText(context.date.timeIntervalSince(started)))
+                            .font(.system(size: 38, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                }
 
-                Label(model.reading.status.title, systemImage: model.reading.status.symbol)
-                    .font(.headline)
-                    .foregroundStyle(model.reading.status.tint)
+                HStack(spacing: 6) {
+                    LiveDot(color: model.isConnected ? HeartStatus.inZone.tint : HeartStatus.above.tint, active: model.isConnected)
+                    Text(model.isConnected ? "Sending to hub" : "Hub offline, saving")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
 
-                Text(model.reading.status.coachingLine)
+                if let zone = reading.zone, reading.status != .unreliable {
+                    Text("Target \(zone.low) to \(zone.high)")
+                        .font(.system(.footnote, design: .rounded, weight: .semibold))
+                        .foregroundStyle(HeartStatus.inZone.tint)
+                }
+
+                Text(reading.status.coachingLine)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
 
-                if let zone = model.reading.zone, model.reading.status != .unreliable {
-                    Text("Zone \(zone.low) to \(zone.high)")
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.green)
-                }
-
-                HStack(spacing: 10) {
-                    if let started = model.startedAt {
-                        TimelineView(.periodic(from: started, by: 1)) { context in
-                            Label(HeartMath.elapsedText(context.date.timeIntervalSince(started)), systemImage: "timer")
-                                .monospacedDigit()
-                        }
-                    }
-                    Label(model.isConnected ? "Live" : "Offline", systemImage: model.isConnected ? "wifi" : "wifi.slash")
-                        .foregroundStyle(model.isConnected ? Color.green : Color.orange)
-                }
-                .font(.caption2)
-
                 Button(role: .destructive) {
-                    Task { await model.end() }
+                    confirmEnd = true
                 } label: {
-                    Label("End", systemImage: "stop.fill")
+                    Label("End workout", systemImage: "stop.fill")
                 }
-                .padding(.top, 6)
+                .padding(.top, 4)
             }
         }
-        .navigationBarBackButtonHidden(true)
     }
 }
 
-/** The totals shown when the workout ends. */
+/** A number that counts up to its value when it is animated. */
+private struct CountingText: View, Animatable {
+    var value: Double
+
+    var animatableData: Double {
+        get { value }
+        set { value = newValue }
+    }
+
+    var body: some View {
+        Text("\(Int(value.rounded()))")
+    }
+}
+
+/** The totals shown when the workout ends. The numbers count up and the zone bar fills. */
 struct SummaryView: View {
     @Environment(WatchModel.self) private var model
+    @State private var revealed = false
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 8) {
+            VStack(spacing: 12) {
                 Label("Workout done", systemImage: "checkmark.circle.fill")
-                    .font(.headline)
-                    .foregroundStyle(.green)
+                    .font(.system(.headline, design: .rounded))
+                    .foregroundStyle(HeartStatus.inZone.tint)
+                    .symbolEffect(.bounce, value: revealed)
+
                 if let summary = model.summary {
-                    stat("Average", "\(summary.averageBpm) bpm")
-                    stat("Highest", "\(summary.maxBpm) bpm")
-                    stat("Lowest", "\(summary.minBpm) bpm")
-                    if let share = summary.inZoneShare {
-                        stat("In your zone", "\(Int((share * 100).rounded()))%")
+                    VStack(spacing: 0) {
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            CountingText(value: revealed ? Double(summary.averageBpm) : 0)
+                                .font(.system(size: 52, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                            Text("bpm")
+                                .font(.system(.footnote, design: .rounded, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("Average")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
-                    stat("Time", HeartMath.elapsedText(summary.durationSeconds))
+
+                    if let share = summary.inZoneShare {
+                        VStack(spacing: 5) {
+                            GeometryReader { proxy in
+                                Capsule().fill(Brand.ink600)
+                                    .overlay(alignment: .leading) {
+                                        Capsule()
+                                            .fill(HeartStatus.inZone.tint)
+                                            .frame(width: proxy.size.width * (revealed ? share : 0))
+                                    }
+                            }
+                            .frame(height: 8)
+                            Text("\(Int((share * 100).rounded()))% in your zone")
+                                .font(.system(.caption, design: .rounded, weight: .semibold))
+                                .foregroundStyle(HeartStatus.inZone.tint)
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        tile("Highest", "\(summary.maxBpm)")
+                        tile("Lowest", "\(summary.minBpm)")
+                    }
+                    tile("Time", HeartMath.elapsedText(summary.durationSeconds))
                 } else {
                     Text("No heart rate was recorded.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+
                 Button("Done") { model.dismissSummary() }
                     .buttonStyle(.borderedProminent)
                     .tint(Brand.teal)
@@ -204,50 +356,84 @@ struct SummaryView: View {
             }
         }
         .navigationBarBackButtonHidden(true)
+        .onAppear {
+            withAnimation(.easeOut(duration: 1.1)) { revealed = true }
+        }
     }
 
-    /** One line with a label on the left and the value on the right. */
-    private func stat(_ title: String, _ value: String) -> some View {
-        HStack {
-            Text(title).font(.footnote).foregroundStyle(.secondary)
-            Spacer()
-            Text(value).font(.footnote.weight(.semibold)).monospacedDigit()
+    private func tile(_ title: String, _ value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(.title3, design: .rounded, weight: .bold))
+                .monospacedDigit()
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(Brand.ink700.opacity(0.8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
-/** The list of people shown when the watch has to be set to someone. */
+/** The list of people shown when the watch has to be set to someone. People in the session come first. */
 struct WatchPersonPicker: View {
     @Environment(WatchModel.self) private var model
+    @State private var selected: String?
+
+    private var ordered: [RosterPerson] {
+        model.people.filter(\.inSession) + model.people.filter { !$0.inSession }
+    }
 
     var body: some View {
         List {
             if let message = model.errorMessage {
-                Text(message).font(.caption2).foregroundStyle(.red)
+                Text(message)
+                    .font(.caption2)
+                    .foregroundStyle(HeartStatus.high.tint)
+                    .listRowBackground(Color.clear)
             }
             if model.isLoadingPeople && model.people.isEmpty {
-                ProgressView()
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Looking").font(.footnote).foregroundStyle(.secondary)
+                }
+                .listRowBackground(Color.clear)
             }
-            ForEach(model.people) { person in
+            ForEach(ordered) { person in
                 Button {
+                    selected = person.id
                     model.choose(person)
                 } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(person.displayName).font(.headline)
-                        HStack(spacing: 6) {
-                            Text("Tag \(person.tagId)").font(.caption2).foregroundStyle(.secondary)
-                            if person.inSession {
-                                Text("In session").font(.caption2).foregroundStyle(.green)
+                    HStack(spacing: 8) {
+                        Avatar(name: person.displayName, size: 32)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(person.displayName)
+                                .font(.system(.headline, design: .rounded))
+                                .lineLimit(1)
+                            HStack(spacing: 5) {
+                                Text("Tag \(person.tagId)")
+                                if person.inSession {
+                                    LiveDot()
+                                    Text("In session")
+                                }
                             }
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                         }
                     }
                 }
+                .listRowBackground(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Brand.ink700.opacity(0.85)))
             }
             if !model.isLoadingPeople && model.people.isEmpty && model.errorMessage == nil {
-                Text("No one is registered yet.").font(.footnote).foregroundStyle(.secondary)
+                Text("No one is registered yet.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .listRowBackground(Color.clear)
             }
         }
         .navigationTitle("Who are you?")
         .task { await model.loadPeople() }
+        .sensoryFeedback(.selection, trigger: selected)
     }
 }
