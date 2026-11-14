@@ -285,8 +285,10 @@ private struct Radar: View {
     private func blipPosition(_ id: String, radius: CGFloat) -> CGPoint {
         let sum = id.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
         let angle = Double(sum % 360) * .pi / 180
-        let distance = radius * (0.5 + 0.35 * CGFloat((sum / 7) % 10) / 10)
-        return CGPoint(x: cos(angle) * distance, y: sin(angle) * distance)
+        let distance: Double = Double(radius) * (0.5 + 0.35 * Double((sum / 7) % 10) / 10)
+        let dx: Double = cos(angle) * distance
+        let dy: Double = sin(angle) * distance
+        return CGPoint(x: dx, y: dy)
     }
 
     var body: some View {
