@@ -24,8 +24,8 @@ a = Analysis(
     datas=datas,
     binaries=binaries,
     hiddenimports=hiddenimports,
-    # Left out to keep the bundle small
-    excludes=["tkinter", "matplotlib", "pytest", "IPython", "jupyter"],
+    # Left out to keep the bundle small. Matplotlib must stay in, because mediapipe imports it when it loads
+    excludes=["tkinter", "pytest", "IPython", "jupyter"],
 )
 pyz = PYZ(a.pure)
 exe = EXE(
