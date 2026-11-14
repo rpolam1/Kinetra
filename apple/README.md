@@ -28,7 +28,7 @@ Run the tests with Cmd+U (they cover the hub JSON contract, address parsing and 
 
 Set up once (technician):
 1. Make sure the hub is running and the phone is on the same Wi-Fi network.
-2. Open Kinetra on the iPhone, enter the hub address (for example `jetson.local`) and the access key if the hub has one, then tap Connect. Allow Local Network access when iOS asks.
+2. Open Kinetra on the iPhone and allow Local Network access when iOS asks. The app finds the hub on the Wi-Fi network by itself and connects, so there is no address to type. If the hub has an access key the app asks for it once. The next time, it reconnects to the saved hub straight away, and it finds the hub again if the network gave it a new address. A manual address entry is still there under "Enter an address instead" for networks that block the search.
 
 For each person:
 1. The iPhone lists everyone registered with an AprilTag, people in today's session first. Each row shows the tag image, so the person can match it to the tag they will wear. Tap the person.

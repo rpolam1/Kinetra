@@ -35,7 +35,10 @@ targets:
       path: Kinetra/Info.plist
       properties:
         CFBundleDisplayName: Kinetra
-        UILaunchScreen: {}
+        # The launch screen is the same dark colour as the app, so there is no white flash
+        UILaunchScreen:
+          UIColorName: Ink
+        UIUserInterfaceStyle: Dark
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         NSHealthShareUsageDescription: Kinetra reads heart rate from the Apple Watch workout so the technician can see how hard you are working.
@@ -48,8 +51,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.kinetra.app
         TARGETED_DEVICE_FAMILY: "1"
-        # No app icon is set here yet
-        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        # The icon lives in Kinetra/Assets.xcassets
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   KinetraWatch:
     type: application
     platform: watchOS
@@ -78,6 +81,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.kinetra.app.watchkitapp
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   # The tests compile the shared code directly, so they do not need the app to run
   KinetraTests:
     type: bundle.unit-test
