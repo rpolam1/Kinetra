@@ -115,16 +115,17 @@ final class AppModel {
             // The first scan often runs while iOS is still asking for Local Network access, so it gets one more go before giving up
             if retriesLeft > 0 {
                 retriesLeft -= 1
-                Task {
+                Task { [weak self] in
                     try? await Task.sleep(for: .seconds(1.5))
-                    if search == .searching { startSearch(resetRetries: false) }
+                    guard let self, self.search == .searching else { return }
+                    self.startSearch(resetRetries: false)
                 }
             } else {
                 search = .notFound
             }
         case 1:
             let hub = found[0]
-            Task { await connect(to: hub) }
+            Task { await self.connect(to: hub) }
         default:
             search = .choose
         }
