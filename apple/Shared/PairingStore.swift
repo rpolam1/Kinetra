@@ -38,6 +38,7 @@ enum PairingStore {
     private static let fallbackKey = "hub.fallback"
     private static let personKey = "hub.person"
     private static let keyName = "hub.apikey"
+    private static let nameKey = "hub.name"
 
     /** The saved pairing, or nil when the device has not been set up. */
     static func load() -> HubPairing? {
@@ -45,7 +46,7 @@ enum PairingStore {
         guard let text = defaults.string(forKey: urlKey), let url = URL(string: text) else { return nil }
         let person = defaults.data(forKey: personKey).flatMap { try? JSONDecoder().decode(SelectedPerson.self, from: $0) }
         let fallback = defaults.string(forKey: fallbackKey).flatMap(URL.init(string:))
-        return HubPairing(hubURL: url, fallbackURL: fallback, apiKey: Keychain.get(keyName) ?? "", person: person)
+        return HubPairing(hubURL: url, fallbackURL: fallback, apiKey: Keychain.get(keyName) ?? "", person: person, hubName: defaults.string(forKey: nameKey))
     }
 
     /** Saves the pairing, replacing any earlier one. */
@@ -54,6 +55,7 @@ enum PairingStore {
         defaults.set(pairing.hubURL.absoluteString, forKey: urlKey)
         defaults.set(pairing.fallbackURL?.absoluteString, forKey: fallbackKey)
         defaults.set(try? JSONEncoder().encode(pairing.person), forKey: personKey)
+        defaults.set(pairing.hubName, forKey: nameKey)
         Keychain.set(pairing.apiKey, for: keyName)
     }
 
@@ -63,6 +65,7 @@ enum PairingStore {
         defaults.removeObject(forKey: urlKey)
         defaults.removeObject(forKey: fallbackKey)
         defaults.removeObject(forKey: personKey)
+        defaults.removeObject(forKey: nameKey)
         Keychain.set("", for: keyName)
     }
 }

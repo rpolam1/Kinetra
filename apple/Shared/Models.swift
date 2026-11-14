@@ -83,6 +83,7 @@ struct HubPairing: Codable, Equatable, Sendable {
     var fallbackURL: URL?
     var apiKey: String
     var person: SelectedPerson?
+    var hubName: String?
 
     var candidateURLs: [URL] { [hubURL, fallbackURL].compactMap { $0 } }
 }
