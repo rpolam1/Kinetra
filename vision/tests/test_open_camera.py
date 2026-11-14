@@ -23,6 +23,8 @@ class FakeCap:
 
 class FakeCv2:
     """Stands in for the cv2 module and records which camera numbers were tried."""
+    CAP_DSHOW = 700
+
     def __init__(self, cams):
         self.cams, self.tried = cams, []
 
