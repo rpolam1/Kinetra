@@ -1,9 +1,11 @@
 name: apple build
 
-# Runs when the Apple code changes, and can be started by hand from the Actions tab
+# Runs when the Apple code changes on any branch except main, and can be started by hand from the Actions tab
 on:
   workflow_dispatch:
   push:
+    branches-ignore:
+      - main
     paths:
       - "apple/**"
       - ".github/workflows/apple-build.yml"
