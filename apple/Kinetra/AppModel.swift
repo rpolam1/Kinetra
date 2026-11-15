@@ -221,6 +221,14 @@ final class AppModel {
     func startOnWatch() async {
         guard let pairing else { return }
         lastLaunchError = nil
+        guard link.isPaired else {
+            lastLaunchError = "No Apple Watch is paired with this phone. Pair it in the Watch app on the iPhone."
+            return
+        }
+        guard link.isWatchAppInstalled else {
+            lastLaunchError = "The Kinetra app is not installed on the watch. In the Watch app on the iPhone, find Kinetra and turn on Show App on Apple Watch, or run the Kinetra scheme from Xcode again."
+            return
+        }
         link.send(pairing)
         do {
             try await link.launchWatchWorkout()

@@ -186,7 +186,6 @@ struct MonitorView: View {
                     Label("Start on Apple Watch", systemImage: "applewatch.watchface")
                 }
                 .buttonStyle(PrimaryButtonStyle())
-                .disabled(!model.link.isPaired || !model.link.isWatchAppInstalled)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
