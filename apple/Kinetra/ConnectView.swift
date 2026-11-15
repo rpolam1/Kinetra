@@ -60,6 +60,7 @@ struct ConnectView: View {
 
                 manualEntry
             }
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, 24)
             .padding(.bottom, 36)
             .animation(.smooth(duration: 0.45), value: stateKey)
@@ -93,6 +94,7 @@ struct ConnectView: View {
                 .font(.system(.title2, design: .rounded, weight: .bold))
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Text(subtitle)
                 .font(.subheadline)
                 .foregroundStyle(Brand.ink200)
@@ -147,10 +149,10 @@ struct ConnectView: View {
                                 .frame(width: 40, height: 40)
                                 .background(Brand.mint.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(hub.name).font(.system(.headline, design: .rounded)).foregroundStyle(.white)
-                                Text(hub.host).font(.footnote).foregroundStyle(Brand.ink300)
+                                Text(hub.name).font(.system(.headline, design: .rounded)).foregroundStyle(.white).lineLimit(1)
+                                Text(hub.host).font(.footnote).foregroundStyle(Brand.ink300).lineLimit(1).truncationMode(.middle)
                             }
-                            Spacer()
+                            Spacer(minLength: 8)
                             Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Brand.ink400)
                         }
                         .cardStyle(padding: 14)

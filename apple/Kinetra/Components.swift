@@ -5,22 +5,25 @@ struct AppBackdrop: View {
     @State private var drift = false
 
     var body: some View {
-        ZStack {
-            Brand.ink900
-            // Soft gradient discs are moved around, because shifting a view costs almost nothing and blurring one costs a lot
-            Circle()
-                .fill(RadialGradient(colors: [Brand.teal.opacity(0.40), .clear], center: .center, startRadius: 0, endRadius: 280))
-                .frame(width: 560, height: 560)
-                .offset(x: drift ? 120 : -110, y: drift ? -250 : -320)
-            Circle()
-                .fill(RadialGradient(colors: [Color(hex: 0x165A52).opacity(0.50), .clear], center: .center, startRadius: 0, endRadius: 260))
-                .frame(width: 520, height: 520)
-                .offset(x: drift ? -130 : 110, y: drift ? 330 : 270)
-        }
-        .ignoresSafeArea()
-        .onAppear {
-            withAnimation(.easeInOut(duration: 16).repeatForever(autoreverses: true)) { drift = true }
-        }
+        Brand.ink900
+            .overlay {
+                // Soft gradient discs are moved around, because shifting a view costs almost nothing and blurring one costs a lot
+                ZStack {
+                    Circle()
+                        .fill(RadialGradient(colors: [Brand.teal.opacity(0.40), .clear], center: .center, startRadius: 0, endRadius: 280))
+                        .frame(width: 560, height: 560)
+                        .offset(x: drift ? 120 : -110, y: drift ? -250 : -320)
+                    Circle()
+                        .fill(RadialGradient(colors: [Color(hex: 0x165A52).opacity(0.50), .clear], center: .center, startRadius: 0, endRadius: 260))
+                        .frame(width: 520, height: 520)
+                        .offset(x: drift ? -130 : 110, y: drift ? 330 : 270)
+                }
+            }
+            .clipped()
+            .ignoresSafeArea()
+            .onAppear {
+                withAnimation(.easeInOut(duration: 16).repeatForever(autoreverses: true)) { drift = true }
+            }
     }
 }
 

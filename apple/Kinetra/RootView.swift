@@ -7,7 +7,6 @@ struct RootView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                AppBackdrop()
                 switch model.step {
                 case .connect:
                     ConnectView()
@@ -20,6 +19,7 @@ struct RootView: View {
                         .transition(.opacity.combined(with: .scale(scale: 1.02)))
                 }
             }
+            .background { AppBackdrop() }
             .animation(.smooth(duration: 0.5), value: model.step)
         }
         .tint(Brand.mint)

@@ -144,6 +144,13 @@ struct PersonPickerView: View {
             .padding(.top, 6)
     }
 
+    @ViewBuilder
+    private func chips(for person: RosterPerson) -> some View {
+        Chip(text: "Tag \(person.tagId)", symbol: "qrcode")
+        if person.inView { Chip(text: "On camera", symbol: "camera.fill", tint: HeartStatus.below.tint) }
+        if person.watchConnected { Chip(text: "Watch live", symbol: "applewatch", tint: HeartStatus.inZone.tint) }
+    }
+
     private func row(_ person: RosterPerson, index: Int) -> some View {
         Button {
             chosen = person.id
@@ -158,12 +165,12 @@ struct PersonPickerView: View {
                     }
                 VStack(alignment: .leading, spacing: 7) {
                     Text(person.displayName)
+                        .lineLimit(1)
                         .font(.system(.headline, design: .rounded))
                         .foregroundStyle(.white)
-                    HStack(spacing: 6) {
-                        Chip(text: "Tag \(person.tagId)", symbol: "qrcode")
-                        if person.inView { Chip(text: "On camera", symbol: "camera.fill", tint: HeartStatus.below.tint) }
-                        if person.watchConnected { Chip(text: "Watch live", symbol: "applewatch", tint: HeartStatus.inZone.tint) }
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 6) { chips(for: person) }
+                        VStack(alignment: .leading, spacing: 6) { chips(for: person) }
                     }
                 }
                 Spacer(minLength: 6)
