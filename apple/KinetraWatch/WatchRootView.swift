@@ -288,7 +288,7 @@ struct WatchPersonPicker: View {
             if model.isLoadingPeople && model.people.isEmpty {
                 ProgressView()
             }
-            ForEach(model.people) { person in
+            ForEach(model.people.filter(\.inSession)) { person in
                 Button {
                     model.choose(person)
                 } label: {
@@ -309,8 +309,11 @@ struct WatchPersonPicker: View {
                     }
                 }
             }
-            if !model.isLoadingPeople && model.people.isEmpty && model.errorMessage == nil {
-                Text("No one is registered yet.").font(.footnote).foregroundStyle(.secondary)
+            if !model.isLoadingPeople && !model.people.contains(where: \.inSession) && model.errorMessage == nil {
+                Text(model.people.isEmpty ? "No one is registered yet." : "No one is in a session yet. Start one in the web app.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button("Refresh") { Task { await model.loadPeople() } }
             }
         }
         .navigationTitle("Who are you?")
