@@ -2,14 +2,11 @@ import Foundation
 import Observation
 import WatchKit
 
-/** The state of the watch app. It runs the workout, collects heart rate and uploads it. */
 @MainActor
 @Observable
 final class WatchModel {
-    // One shared model is needed because the system can start the app from a workout request
     static let shared = WatchModel()
 
-    /** Where the watch is in its flow. */
     enum Phase: Equatable {
         case needsSetup
         case choosing
@@ -26,10 +23,10 @@ final class WatchModel {
     var startedAt: Date?
     var isConnected = true
     var errorMessage: String?
+    var hubProblem: String?
     var people: [RosterPerson] = []
     var isLoadingPeople = false
     var summary: WorkoutSummary?
-    var hubReachable: Bool?
 
     private let workout = WorkoutManager()
     private let link = WatchLink()
@@ -39,7 +36,6 @@ final class WatchModel {
     private var lastStatus: HeartStatus?
     private var lastZone: HeartZone?
 
-    // The saved pairing is read at once so the watch works without the phone nearby
     private init() {
         pairing = PairingStore.load()
         phase = Self.restingPhase(for: pairing)
@@ -58,13 +54,11 @@ final class WatchModel {
         link.activate()
     }
 
-    /** The screen to return to when nothing is running. */
     private static func restingPhase(for pairing: HubPairing?) -> Phase {
         guard let pairing else { return .needsSetup }
         return pairing.person == nil ? .choosing : .ready
     }
 
-    /** Takes new hub details from the phone. A workout in progress keeps its screen. */
     func apply(_ incoming: HubPairing) {
         pairing = incoming
         PairingStore.save(incoming)
@@ -72,7 +66,6 @@ final class WatchModel {
         phase = Self.restingPhase(for: incoming)
     }
 
-    /** Saves who is wearing this watch. */
     func choose(_ person: RosterPerson) {
         guard var next = pairing else { return }
         next.person = person.selection
@@ -81,25 +74,10 @@ final class WatchModel {
         phase = .ready
     }
 
-    /** Goes back to the list of people. */
     func changePerson() {
         guard phase == .ready || phase == .summary else { return }
         phase = pairing == nil ? .needsSetup : .choosing
         Task { await loadPeople() }
-    }
-
-    /** Loads the roster, trying each hub address until one answers. */
-    /** Checks whether the hub answers, so the ready screen can say so before the person starts. The saved IP address is tried as well as the name. */
-    func checkHub() async {
-        guard let pairing else { return }
-        hubReachable = nil
-        for url in pairing.candidateURLs {
-            if await HubDiscovery.probe(url) != nil {
-                hubReachable = true
-                return
-            }
-        }
-        hubReachable = false
     }
 
     func loadPeople() async {
@@ -119,7 +97,6 @@ final class WatchModel {
         errorMessage = lastError?.localizedDescription
     }
 
-    /** Starts the workout and the upload. If the workout cannot start, the watch goes back to ready with an explanation. */
     func start() async {
         guard phase == .ready || phase == .summary, let pairing, let person = pairing.person else { return }
         errorMessage = nil
@@ -127,6 +104,7 @@ final class WatchModel {
         samples = []
         reading = .waiting
         localBpm = nil
+        hubProblem = nil
         lastStatus = nil
         lastZone = nil
         isConnected = true
@@ -136,7 +114,8 @@ final class WatchModel {
             patientId: person.patientId,
             deviceId: WKInterfaceDevice.current().name,
             onReading: { [weak self] value in Task { @MainActor in self?.receive(value) } },
-            onConnection: { [weak self] ok in Task { @MainActor in self?.isConnected = ok } }
+            onConnection: { [weak self] ok in Task { @MainActor in self?.isConnected = ok } },
+            onProblem: { [weak self] message in Task { @MainActor in self?.hubProblem = message } }
         )
         uploader = newUploader
         do {
@@ -153,13 +132,11 @@ final class WatchModel {
         WKInterfaceDevice.current().play(.start)
     }
 
-    /** Ends the workout when the person or the phone asks. */
     func end() async {
         guard phase == .running || phase == .starting else { return }
         await finish()
     }
 
-    /** Stops the upload, sends what is left, and works out the summary. This also runs when the system ends the workout. */
     private func finish() async {
         guard phase == .running || phase == .starting else { return }
         phase = .summary
@@ -172,12 +149,10 @@ final class WatchModel {
         WKInterfaceDevice.current().play(.stop)
     }
 
-    /** Leaves the summary screen. */
     func dismissSummary() {
         phase = Self.restingPhase(for: pairing)
     }
 
-    /** Keeps a reading from the watch sensor and queues it for upload. */
     private func record(bpm: Double, at date: Date) {
         guard phase == .running else { return }
         let sample = HeartSample(t: date.timeIntervalSince1970, bpm: bpm)
@@ -186,7 +161,6 @@ final class WatchModel {
         Task { await uploader?.enqueue(sample) }
     }
 
-    /** Handles the hub's view of the heart rate. A tap on the wrist is played only when the status changes. */
     private func receive(_ value: HeartReading) {
         guard phase == .running else { return }
         reading = value
@@ -194,7 +168,6 @@ final class WatchModel {
         guard value.status != lastStatus else { return }
         let previous = lastStatus
         lastStatus = value.status
-        // A first reading of no signal is skipped, so starting a workout does not buzz
         guard previous != nil || value.status != .noSignal else { return }
         switch value.status {
         case .high: WKInterfaceDevice.current().play(.failure)
@@ -205,7 +178,6 @@ final class WatchModel {
         }
     }
 
-    /** The rate straight from the watch when there is one, because it is faster than the round trip to the hub. */
     var displayedBpm: Int? {
         localBpm ?? reading.bpm
     }
