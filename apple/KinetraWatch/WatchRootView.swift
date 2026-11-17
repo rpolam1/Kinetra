@@ -41,19 +41,35 @@ struct SetupNeededView: View {
     }
 }
 
+struct Avatar: View {
+    let name: String
+
+    var body: some View {
+        ZStack {
+            Circle().fill(Brand.teal.gradient)
+            Text(String(name.prefix(1)).uppercased())
+                .font(.system(.title3, design: .rounded, weight: .bold))
+                .foregroundStyle(.white)
+        }
+    }
+}
+
 struct ReadyView: View {
     @Environment(WatchModel.self) private var model
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 if let person = model.pairing?.person {
-                    VStack(spacing: 2) {
+                    Avatar(name: person.displayName)
+                        .frame(width: 46, height: 46)
+                    VStack(spacing: 1) {
                         Text(person.displayName)
-                            .font(.title3.bold())
-                            .multilineTextAlignment(.center)
+                            .font(.system(.headline, design: .rounded))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                         Label("Tag \(person.tagId)", systemImage: "qrcode")
-                            .font(.footnote.weight(.medium))
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -64,15 +80,17 @@ struct ReadyView: View {
                     Task { await model.start() }
                 } label: {
                     Label("Start", systemImage: "heart.fill")
-                        .font(.headline)
+                        .font(.system(.headline, design: .rounded))
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Brand.teal)
 
                 Button("Change person") { model.changePerson() }
-                    .font(.footnote)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.top, 4)
+            .padding(.top, 2)
         }
         .navigationTitle("Kinetra")
     }
@@ -122,67 +140,93 @@ struct HeartRing: View {
 }
 
 struct RunningView: View {
+    var body: some View {
+        TabView {
+            LiveHeartPage()
+            DetailsPage()
+        }
+        .tabViewStyle(.verticalPage)
+        .navigationBarBackButtonHidden(true)
+    }
+}
+
+struct LiveHeartPage: View {
+    @Environment(WatchModel.self) private var model
+
+    private var status: HeartStatus { model.reading.status }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            HeartRing(bpm: model.displayedBpm, reading: model.reading)
+                .frame(maxHeight: .infinity)
+            Label(status.title, systemImage: status.symbol)
+                .font(.system(.footnote, design: .rounded, weight: .bold))
+                .foregroundStyle(status.tint)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .background(status.tint.opacity(0.18), in: Capsule())
+            if let problem = model.hubProblem {
+                Text(problem)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+            }
+            if let started = model.startedAt {
+                TimelineView(.periodic(from: started, by: 1)) { context in
+                    if model.localBpm == nil, context.date.timeIntervalSince(started) > 20 {
+                        Text("No heart rate yet. Wear the watch snug and check Health access for Kinetra on your iPhone.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(3)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 4)
+        .background {
+            LinearGradient(colors: [status.tint.opacity(0.30), .clear], startPoint: .top, endPoint: .center)
+                .ignoresSafeArea()
+        }
+        .animation(.smooth(duration: 0.5), value: status)
+    }
+}
+
+struct DetailsPage: View {
     @Environment(WatchModel.self) private var model
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 6) {
-                HeartRing(bpm: model.displayedBpm, reading: model.reading)
-                    .frame(height: 130)
-
-                Label(model.reading.status.title, systemImage: model.reading.status.symbol)
-                    .font(.headline)
-                    .foregroundStyle(model.reading.status.tint)
-
+            VStack(spacing: 8) {
+                if let started = model.startedAt {
+                    TimelineView(.periodic(from: started, by: 1)) { context in
+                        Text(HeartMath.elapsedText(context.date.timeIntervalSince(started)))
+                            .font(.system(size: 34, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                }
+                if let zone = model.reading.zone, model.reading.status != .unreliable {
+                    Label("Zone \(zone.low) to \(zone.high)", systemImage: "scope")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.green)
+                }
                 Text(model.reading.status.coachingLine)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-
-                if let zone = model.reading.zone, model.reading.status != .unreliable {
-                    Text("Zone \(zone.low) to \(zone.high)")
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.green)
-                }
-
-                if let problem = model.hubProblem {
-                    Text(problem)
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                        .multilineTextAlignment(.center)
-                }
-                if let started = model.startedAt {
-                    TimelineView(.periodic(from: started, by: 1)) { context in
-                        if model.localBpm == nil, context.date.timeIntervalSince(started) > 20 {
-                            Text("No heart rate from the watch yet. Wear it snug on your wrist, then check Health access for Kinetra in the Watch app on your iPhone.")
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
-                                .multilineTextAlignment(.center)
-                        }
-                    }
-                }
-
-                HStack(spacing: 10) {
-                    if let started = model.startedAt {
-                        TimelineView(.periodic(from: started, by: 1)) { context in
-                            Label(HeartMath.elapsedText(context.date.timeIntervalSince(started)), systemImage: "timer")
-                                .monospacedDigit()
-                        }
-                    }
-                    Label(model.isConnected ? "Live" : "Offline", systemImage: model.isConnected ? "wifi" : "wifi.slash")
-                        .foregroundStyle(model.isConnected ? Color.green : Color.orange)
-                }
-                .font(.caption2)
-
+                Label(model.isConnected ? "Live" : "Offline", systemImage: model.isConnected ? "wifi" : "wifi.slash")
+                    .font(.caption2)
+                    .foregroundStyle(model.isConnected ? Color.green : Color.orange)
                 Button(role: .destructive) {
                     Task { await model.end() }
                 } label: {
-                    Label("End", systemImage: "stop.fill")
+                    Label("End workout", systemImage: "stop.fill")
+                        .frame(maxWidth: .infinity)
                 }
-                .padding(.top, 6)
+                .padding(.top, 4)
             }
         }
-        .navigationBarBackButtonHidden(true)
     }
 }
 
@@ -196,7 +240,14 @@ struct SummaryView: View {
                     .font(.headline)
                     .foregroundStyle(.green)
                 if let summary = model.summary {
-                    stat("Average", "\(summary.averageBpm) bpm")
+                    VStack(spacing: 0) {
+                        Text("\(summary.averageBpm)")
+                            .font(.system(size: 46, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                        Text("AVERAGE BPM")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
                     stat("Highest", "\(summary.maxBpm) bpm")
                     stat("Lowest", "\(summary.minBpm) bpm")
                     if let share = summary.inZoneShare {
@@ -241,12 +292,18 @@ struct WatchPersonPicker: View {
                 Button {
                     model.choose(person)
                 } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(person.displayName).font(.headline)
-                        HStack(spacing: 6) {
-                            Text("Tag \(person.tagId)").font(.caption2).foregroundStyle(.secondary)
-                            if person.inSession {
-                                Text("In session").font(.caption2).foregroundStyle(.green)
+                    HStack(spacing: 8) {
+                        Avatar(name: person.displayName)
+                            .frame(width: 30, height: 30)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(person.displayName)
+                                .font(.system(.headline, design: .rounded))
+                                .lineLimit(1)
+                            HStack(spacing: 6) {
+                                Text("Tag \(person.tagId)").font(.caption2).foregroundStyle(.secondary)
+                                if person.inSession {
+                                    Text("In session").font(.caption2).foregroundStyle(.green)
+                                }
                             }
                         }
                     }
