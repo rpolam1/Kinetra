@@ -1,18 +1,18 @@
-"""Captures reps from a camera during a calibration job and sends them, with replay frames, to the hub."""
 from collections import deque
 
 from formcheck.feature_extractor import FeatureExtractor
-from formcheck.rep_segmenter import RepSegmenter
+from formcheck.rep_segmenter import MIN_REP_SECONDS, RepSegmenter
 from formcheck.template_manager import rep_samples_for_template
 
 LIVE_POST_INTERVAL = 0.2  # seconds between live skeleton updates (~5/s)
 FRAME_BUFFER_SECONDS = 25.0  # longest rep the segmenter accepts
 REPLAY_PAD = 0.4  # seconds of context kept before and after each rep
 MAX_REPLAY_FRAMES = 60  # keeps each uploaded rep small
+MIN_CALIBRATION_REP_SECONDS = 0.8  # calibration reps are slow and careful, so faster motion is noise
+TOO_CLOSE_FRACTION = 0.42  # torso longer than this share of the frame height means the person is too near
 
 
 def flat_landmarks(landmarks):
-    """Flatten landmarks into x, y, visibility triples, rounded to keep the upload small."""
     out = []
     for lm in landmarks:
         out.extend((round(lm.x, 3), round(lm.y, 3), round(getattr(lm, "visibility", 1.0), 2)))
@@ -24,7 +24,6 @@ def grouped_landmarks(flat):
 
 
 def subsample(items, limit):
-    """Pick evenly spaced items, always keeping the first and last."""
     n = len(items)
     if n <= limit:
         return list(items)
@@ -32,7 +31,6 @@ def subsample(items, limit):
 
 
 class CalibrationRunner:
-    """Drives one calibration job. Follows a single person, segments their reps and uploads each rep with a short replay of the frames around it."""
     def __init__(self, job, exercise_config, sender):
         self.job = job
         self.sender = sender
@@ -40,6 +38,7 @@ class CalibrationRunner:
         self.segmenter = RepSegmenter(
             mode="rep_based",
             min_angle_range_deg=exercise_config.get("min_rom_deg", 15.0),
+            min_rep_seconds=max(exercise_config.get("min_rep_seconds", MIN_REP_SECONDS), MIN_CALIBRATION_REP_SECONDS),
             rest_direction=exercise_config.get("rest_direction"),
         )
         self.track_id = None  # the person being calibrated (sticky)
@@ -48,7 +47,6 @@ class CalibrationRunner:
         self._last_post = float("-inf")
 
     def _choose(self, people):
-        """Pick the person to calibrate. Once chosen, the same track is kept until they leave view, so someone walking past does not take over the job."""
         if not people:
             self.track_id = None
             return None, "no_person", "No one in view"
@@ -57,7 +55,6 @@ class CalibrationRunner:
                 if p["track_id"] == self.track_id:
                     return p, "ok", ""
             self.track_id = None
-        # Prefer someone already identified by their tag as this patient
         mine = [p for p in people if p["patient_id"] == self.job["patient_id"]]
         if mine:
             self.track_id = mine[0]["track_id"]
@@ -71,7 +68,6 @@ class CalibrationRunner:
         return None, "ambiguous", "Several people in view: show the patient's tag so the right person is tracked"
 
     def step(self, people, frame_shape, now):
-        """Process one frame of detections. Returns the track id being followed, or None when nobody usable is in view. Live status is posted at most every LIVE_POST_INTERVAL seconds."""
         person, status, message = self._choose(people)
         angle = None
         landmarks = None
@@ -79,8 +75,12 @@ class CalibrationRunner:
         if person is not None:
             landmarks = flat_landmarks(person["landmarks"])
             self._frames.append((now, landmarks))
-            feature = self.extractor.extract(person["landmarks"], frame_shape)
-            if feature is None:
+            too_close = person.get("scale", 0) > TOO_CLOSE_FRACTION * frame_shape[0]
+            feature = None if too_close else self.extractor.extract(person["landmarks"], frame_shape)
+            if too_close:
+                self.segmenter.reset()
+                status, message = "too_close", "Too close to the camera: step back so the whole body is in view"
+            elif feature is None:
                 status, message = "joints_hidden", "The whole body must be visible: step back or turn to face the camera"
             else:
                 angle = round(feature["primary_angle"], 1)
@@ -100,7 +100,6 @@ class CalibrationRunner:
         return self.track_id if person is not None else None
 
     def _send_rep(self, samples, meta):
-        # Pad the window so the replay shows the setup and the return, not only the rep itself
         start, end = meta["t_start"] - REPLAY_PAD, meta["t_end"] + REPLAY_PAD
         window = [(t, lm) for t, lm in self._frames if start <= t <= end]
         frames = [{"t": round(t - start, 3), "p": lm} for t, lm in subsample(window, MAX_REPLAY_FRAMES)]
