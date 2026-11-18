@@ -206,7 +206,12 @@ class LiveService:
         """End the session and return its summary."""
         with self.core.lock:
             summary = self.session_summary()  # computed before the session closes
+            order = list(self.session.order())
             self.session.end()
+            # The last reading and the watch link belong to the session that just ended
+            self.core.heart.reset(order, self.clock())
+            for pid in order:
+                self.core.devices.pop(pid, None)
         self.publish_live(force=True)
         return summary
 

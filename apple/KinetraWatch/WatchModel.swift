@@ -60,10 +60,47 @@ final class WatchModel {
     }
 
     func apply(_ incoming: HubPairing) {
+        let changed = incoming.person?.patientId != pairing?.person?.patientId
         pairing = incoming
         PairingStore.save(incoming)
+        if incoming.person == nil, phase == .running || phase == .starting {
+            Task { await end() }
+            return
+        }
         if phase == .running || phase == .starting { return }
+        if changed { resetReading() }
         phase = Self.restingPhase(for: incoming)
+    }
+
+    private func resetReading() {
+        reading = .waiting
+        localBpm = nil
+        startedAt = nil
+        summary = nil
+        hubProblem = nil
+    }
+
+    /** Goes back to the choose list when the person picked is no longer in a running session. */
+    func refreshSession() async {
+        guard phase == .ready || phase == .choosing, let pairing else { return }
+        var roster: Roster?
+        for url in pairing.candidateURLs {
+            if let found = try? await HubClient(baseURL: url, apiKey: pairing.apiKey).roster() {
+                roster = found
+                break
+            }
+        }
+        guard let roster else { return }
+        people = roster.people
+        guard phase == .ready, let person = pairing.person else { return }
+        if !roster.people.contains(where: { $0.patientId == person.patientId && $0.inSession }) {
+            var next = pairing
+            next.person = nil
+            self.pairing = next
+            PairingStore.save(next)
+            resetReading()
+            phase = .choosing
+        }
     }
 
     func choose(_ person: RosterPerson) {
@@ -150,7 +187,9 @@ final class WatchModel {
     }
 
     func dismissSummary() {
+        resetReading()
         phase = Self.restingPhase(for: pairing)
+        Task { await refreshSession() }
     }
 
     private func record(bpm: Double, at date: Date) {

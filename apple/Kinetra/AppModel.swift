@@ -143,7 +143,9 @@ final class AppModel {
         do {
             let roster = try await HubClient(baseURL: hub.url, apiKey: useKey).roster()
             // The chosen person is kept only when it is the same hub
-            let keepPerson = sameHub ? pairing?.person : nil
+            let keepPerson = sameHub ? pairing?.person.flatMap { person in
+                roster.people.contains { $0.patientId == person.patientId && $0.inSession } ? person : nil
+            } : nil
             // Resolving the host name can block, so it runs away from the main thread
             let fallback = await Task.detached { HostResolver.fallbackURL(for: hub.url) }.value
             var next = HubPairing(hubURL: hub.url, fallbackURL: fallback, apiKey: useKey, person: keepPerson, hubName: hub.name)
@@ -211,6 +213,31 @@ final class AppModel {
         step = .choose
     }
 
+    /** Forgets who is exercising and returns to the list, so nothing from the last session is shown. */
+    func clearPerson(endWatch: Bool) {
+        if endWatch { link.sendEnd() }
+        reading = .waiting
+        history = []
+        lastLaunchError = nil
+        guard var next = pairing else { return }
+        next.person = nil
+        pairing = next
+        PairingStore.save(next)
+        link.send(next)
+        step = .choose
+    }
+
+    /** Checks the hub's roster and goes back to the choose screen when the chosen person is no longer in a running session. */
+    func syncSession() async {
+        guard let client, let person = pairing?.person, step == .monitor else { return }
+        guard let roster = try? await client.roster() else { return }
+        apply(roster)
+        let stillIn = roster.sessionActive && roster.people.contains { $0.patientId == person.patientId && $0.inSession }
+        if !stillIn, pairing?.person?.patientId == person.patientId {
+            clearPerson(endWatch: true)
+        }
+    }
+
     func changeHub() {
         errorMessage = nil
         step = .connect
@@ -244,13 +271,19 @@ final class AppModel {
 
     /** Reads the person's heart rate from the hub every two seconds until the screen goes away. After a few failures it looks for the hub again, in case the network gave it a new address. */
     func pollReading() async {
+        var tick = 0
         while !Task.isCancelled {
+            if tick % 2 == 0 { await syncSession() }
+            tick += 1
             if let client, let person = pairing?.person {
                 do {
                     let latest = try await client.status(patientId: person.patientId)
                     failures = 0
                     if !hubOnline { hubOnline = true }
-                    reading = latest
+                    // A reading that has gone stale is shown as waiting, not as the last number
+                    reading = latest.status == .noSignal
+                        ? HeartReading(bpm: nil, ageSeconds: latest.ageSeconds, status: .noSignal, message: latest.message, zone: latest.zone)
+                        : latest
                     record(latest)
                 } catch {
                     failures += 1
@@ -273,6 +306,7 @@ final class AppModel {
             await recoverHub()
         } else {
             hubOnline = true
+            await syncSession()
         }
     }
 

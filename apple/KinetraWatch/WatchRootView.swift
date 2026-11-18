@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WatchRootView: View {
     @Environment(WatchModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -22,6 +23,10 @@ struct WatchRootView: View {
         }
         .tint(Brand.mint)
         .containerBackground(Brand.ink900.gradient, for: .navigation)
+        .task { await model.refreshSession() }
+        .onChange(of: scenePhase) { _, new in
+            if new == .active { Task { await model.refreshSession() } }
+        }
     }
 }
 

@@ -129,6 +129,7 @@ class HeartLog:
     def __init__(self, store):
         self.store = store
         self._latest = {}
+        self._cleared = {}
 
     def add(self, patient_id, samples):
         """Save samples and keep the newest one in memory."""
@@ -146,7 +147,16 @@ class HeartLog:
             if found is None:
                 return None
             self._latest[patient_id] = found
-        return self._latest[patient_id]
+        sample = self._latest[patient_id]
+        # Samples from before the last reset are not shown, though they stay in the store
+        if sample["t"] <= self._cleared.get(patient_id, float("-inf")):
+            return None
+        return sample
+
+    def reset(self, patient_ids, now):
+        """Stop showing the current reading for these patients. Only samples newer than now count again."""
+        for pid in patient_ids:
+            self._cleared[pid] = now
 
     def between(self, patient_id, since, until=None):
         """Samples for a patient within a time range."""

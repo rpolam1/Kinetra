@@ -149,6 +149,24 @@ def test_roster_lists_registered_tags_with_session_people_first():
     assert not r["people"][1]["in_session"] and not r["people"][1]["watch_connected"]
 
 
+def test_ending_a_session_clears_the_heart_reading_and_the_watch_link():
+    c, core, now = make()
+    c.put("/api/tags/4", json={"patient_id": "P-0001", "display_name": "Ana K."})
+    start(c, [zone_person()])
+    post(c, "P-0001", [{"t": now[0], "bpm": 120}])
+    assert c.get("/api/vitals/P-0001").json["status"]["bpm"] == 120
+    assert c.post("/api/session/end").status_code == 200
+    status = c.get("/api/vitals/P-0001").json["status"]
+    assert status["bpm"] is None and status["status"] == "no_signal"
+    roster = c.get("/api/watch/roster").json
+    assert not roster["session_active"] and not roster["people"][0]["watch_connected"]
+    now[0] += 5
+    start(c, [zone_person()])
+    assert c.get("/api/vitals/P-0001").json["status"]["bpm"] is None
+    post(c, "P-0001", [{"t": now[0], "bpm": 95}])
+    assert c.get("/api/vitals/P-0001").json["status"]["bpm"] == 95
+
+
 def test_the_api_key_protects_the_vitals_routes():
     core = HubCore(":memory:", exercise_config_path=CONFIG)
     c = create_app(core, api_key="secret").test_client()
