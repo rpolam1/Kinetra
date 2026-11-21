@@ -24,6 +24,7 @@ final class WatchModel {
     var isConnected = true
     var errorMessage: String?
     var hubProblem: String?
+    var hubReachable: Bool?
     var people: [RosterPerson] = []
     var isLoadingPeople = false
     var summary: WorkoutSummary?
@@ -115,6 +116,19 @@ final class WatchModel {
         guard phase == .ready || phase == .summary else { return }
         phase = pairing == nil ? .needsSetup : .choosing
         Task { await loadPeople() }
+    }
+
+    /** Checks whether the hub answers, trying the saved address as well as the name. */
+    func checkHub() async {
+        guard let pairing else { return }
+        hubReachable = nil
+        for url in pairing.candidateURLs {
+            if await HubDiscovery.probe(url) != nil {
+                hubReachable = true
+                return
+            }
+        }
+        hubReachable = false
     }
 
     func loadPeople() async {
