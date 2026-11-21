@@ -152,7 +152,8 @@ final class WatchModel {
             deviceId: WKInterfaceDevice.current().name,
             onReading: { [weak self] value in Task { @MainActor in self?.receive(value) } },
             onConnection: { [weak self] ok in Task { @MainActor in self?.isConnected = ok } },
-            onProblem: { [weak self] message in Task { @MainActor in self?.hubProblem = message } }
+            onProblem: { [weak self] message in Task { @MainActor in self?.hubProblem = message } },
+            onSessionEnded: { [weak self] in Task { @MainActor in await self?.endForSession() } }
         )
         uploader = newUploader
         do {
@@ -172,6 +173,20 @@ final class WatchModel {
     func end() async {
         guard phase == .running || phase == .starting else { return }
         await finish()
+    }
+
+    /** The session ended on the hub, so the workout stops and the watch goes back to the list with nothing left from the last person. */
+    func endForSession() async {
+        guard phase == .running || phase == .starting else { return }
+        await finish()
+        resetReading()
+        if var next = pairing {
+            next.person = nil
+            pairing = next
+            PairingStore.save(next)
+        }
+        phase = Self.restingPhase(for: pairing)
+        await loadPeople()
     }
 
     private func finish() async {
