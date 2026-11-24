@@ -68,7 +68,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: kinetra-camera-${{ matrix.name }}
-          path: vision/kinetra-camera-${{ matrix.name }}.*
+          path: kinetra-camera-${{ matrix.name }}.*
+          # Fail here instead of silently uploading nothing
+          if-no-files-found: error
 
   # Runs once after every build has finished and publishes all the files together
   release:
